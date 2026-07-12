@@ -460,7 +460,8 @@ export default function App() {
       goldRenewalDate: newLoan.type === 'GOLD_LOAN' ? new Date(start.getTime() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : undefined,
       goldPenaltyRate: newLoan.type === 'GOLD_LOAN' ? 2 : undefined,
       creditLimit: newLoan.type === 'CREDIT_CARD' ? Number(newLoan.originalAmount) : undefined,
-      minDue: newLoan.type === 'CREDIT_CARD' ? Number(newLoan.emi) : undefined
+      minDue: newLoan.type === 'CREDIT_CARD' ? Number(newLoan.emi) : undefined,
+      borrowerName: newLoan.type === 'FRIEND_LOAN' || newLoan.type === 'FAMILY_LOAN' ? newLoan.borrowerName : undefined
     };
 
     if (currentUser && !currentUser.token.startsWith('demo-')) {
@@ -1135,6 +1136,28 @@ export default function App() {
                 </div>
               </div>
 
+              {/* QUICK ACTIONS BAR */}
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => setShowAddExpenseModal(true)}
+                  className="glow-btn bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer transition"
+                >
+                  <Plus className="h-4 w-4" /> Add Expense
+                </button>
+                <button
+                  onClick={() => setShowAddIncomeModal(true)}
+                  className="glow-btn bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer transition"
+                >
+                  <Plus className="h-4 w-4" /> Log Salary / Income
+                </button>
+                <button
+                  onClick={() => setShowAddLoanModal(true)}
+                  className="glow-btn bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer transition"
+                >
+                  <Plus className="h-4 w-4" /> Log Money Lent / Loan
+                </button>
+              </div>
+
               {/* CARD GRID METRICS */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 
@@ -1415,6 +1438,8 @@ export default function App() {
                     <option value="GOLD_LOAN">Gold Loan</option>
                     <option value="PERSONAL_LOAN">Personal Loan</option>
                     <option value="CREDIT_CARD">Credit Cards</option>
+                    <option value="FRIEND_LOAN">Money Lent (Friends)</option>
+                    <option value="FAMILY_LOAN">Money Lent (Family)</option>
                   </select>
                 </div>
               </div>
@@ -2210,6 +2235,8 @@ export default function App() {
                     <option value="GOLD_LOAN">Gold Loan</option>
                     <option value="PERSONAL_LOAN">Personal Loan</option>
                     <option value="CREDIT_CARD">Credit Card</option>
+                    <option value="FRIEND_LOAN">Money Lent (Friend)</option>
+                    <option value="FAMILY_LOAN">Money Lent (Family)</option>
                     <option value="OTHER">Other</option>
                   </select>
                   {newLoan.type === 'OTHER' && (
@@ -2221,6 +2248,19 @@ export default function App() {
                         placeholder="e.g. Car Loan, Friend Loan"
                         value={customLoanType}
                         onChange={(e) => setCustomLoanType(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                  )}
+                  {(newLoan.type === 'FRIEND_LOAN' || newLoan.type === 'FAMILY_LOAN') && (
+                    <div className="mt-2">
+                      <label className="text-slate-400 block mb-1">Person's Name (Borrower)</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Ramesh Kumar"
+                        value={newLoan.borrowerName || ''}
+                        onChange={(e) => setNewLoan({ ...newLoan, borrowerName: e.target.value })}
                         className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                       />
                     </div>

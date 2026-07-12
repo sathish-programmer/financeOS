@@ -338,6 +338,25 @@ export function generateSystemAlerts(
     }
   }
 
+  // 6. Lent Money (Friend/Family Loans) Overdue Alert
+  loans.filter(l => (l.type === 'FRIEND_LOAN' || l.type === 'FAMILY_LOAN') && l.status === 'ACTIVE').forEach(lent => {
+    const returnDate = new Date(lent.endDate);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    returnDate.setHours(0,0,0,0);
+    if (today >= returnDate) {
+      const daysOverdue = Math.floor((today.getTime() - returnDate.getTime()) / (24 * 60 * 60 * 1000));
+      alerts.push({
+        id: `lent-overdue-${lent.id}`,
+        type: 'EMI_DUE',
+        title: 'Receivable Balance Alert',
+        message: `Your friend/family member "${lent.borrowerName || lent.name}" was expected to return ${Number(lent.currentOutstanding).toLocaleString()} on ${lent.endDate.toString().split('T')[0]}. This is now ${daysOverdue} days overdue!`,
+        severity: 'critical',
+        date: nowStr,
+      });
+    }
+  });
+
   return alerts;
 }
 
