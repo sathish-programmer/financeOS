@@ -289,9 +289,7 @@ export default function App() {
 
   // Expense & Income Category Selection Helper States
   const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<string>('Food');
-  const [customExpenseCategory, setCustomExpenseCategory] = useState<string>('');
   const [selectedIncomeCategory, setSelectedIncomeCategory] = useState<string>('Salary');
-  const [customIncomeCategory, setCustomIncomeCategory] = useState<string>('');
 
   // Expense Form State
   const [newExpense, setNewExpense] = useState<Partial<Expense>>({
@@ -587,7 +585,7 @@ export default function App() {
   // Handle Add Expense Submission
   const handleCreateExpense = (e: React.FormEvent) => {
     e.preventDefault();
-    const finalCategory = selectedExpenseCategory === 'Others' ? customExpenseCategory || 'Others' : selectedExpenseCategory;
+    const finalCategory = selectedExpenseCategory || 'General';
     if (!newExpense.amount || !finalCategory) return;
 
     const expenseToAdd: Expense = {
@@ -631,13 +629,12 @@ export default function App() {
     }
     setShowAddExpenseModal(false);
     setSelectedExpenseCategory('Food');
-    setCustomExpenseCategory('');
   };
 
   // Handle Add Income Submission
   const handleCreateIncome = (e: React.FormEvent) => {
     e.preventDefault();
-    const finalCategory = selectedIncomeCategory === 'Others' ? customIncomeCategory || 'Others' : selectedIncomeCategory;
+    const finalCategory = selectedIncomeCategory || 'General';
     if (!newIncome.amount || !finalCategory) return;
 
     const incomeToAdd: Income = {
@@ -662,7 +659,6 @@ export default function App() {
     setIncomes([...incomes, incomeToAdd]);
     setShowAddIncomeModal(false);
     setSelectedIncomeCategory('Salary');
-    setCustomIncomeCategory('');
   };
 
   // Handle Add Investment Submission
@@ -2403,29 +2399,26 @@ export default function App() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-slate-400 block mb-1">Category</label>
-                  <select
+                  <input
+                    type="text"
+                    required
+                    list="expense-categories"
+                    placeholder="Type or select category..."
                     value={selectedExpenseCategory}
                     onChange={(e) => setSelectedExpenseCategory(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none"
-                  >
-                    <option value="Food">Food</option>
-                    <option value="Utilities">Utilities</option>
-                    <option value="Medical">Medical</option>
-                    <option value="Fruits">Fruits</option>
-                    <option value="Veggies">Veggies</option>
-                    <option value="Groceries">Groceries</option>
-                    <option value="Others">Others</option>
-                  </select>
-                  {selectedExpenseCategory === 'Others' && (
-                    <input
-                      type="text"
-                      required
-                      placeholder="Type custom category..."
-                      value={customExpenseCategory}
-                      onChange={(e) => setCustomExpenseCategory(e.target.value)}
-                      className="w-full mt-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  )}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <datalist id="expense-categories">
+                    <option value="Food" />
+                    <option value="Utilities" />
+                    <option value="Medical" />
+                    <option value="Fruits" />
+                    <option value="Veggies" />
+                    <option value="Groceries" />
+                    <option value="Petrol" />
+                    <option value="Shopping" />
+                    <option value="Rent" />
+                  </datalist>
                 </div>
                 <div>
                   <label className="text-slate-400 block mb-1">Amount (${currency})</label>
@@ -2492,26 +2485,23 @@ export default function App() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-slate-400 block mb-1">Category</label>
-                  <select
+                  <input
+                    type="text"
+                    required
+                    list="income-categories"
+                    placeholder="Type or select category..."
                     value={selectedIncomeCategory}
                     onChange={(e) => setSelectedIncomeCategory(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none"
-                  >
-                    <option value="Salary">Salary</option>
-                    <option value="Business">Business</option>
-                    <option value="Freelance">Freelance</option>
-                    <option value="Others">Others</option>
-                  </select>
-                  {selectedIncomeCategory === 'Others' && (
-                    <input
-                      type="text"
-                      required
-                      placeholder="Type custom category..."
-                      value={customIncomeCategory}
-                      onChange={(e) => setCustomIncomeCategory(e.target.value)}
-                      className="w-full mt-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  )}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <datalist id="income-categories">
+                    <option value="Salary" />
+                    <option value="Business" />
+                    <option value="Freelance" />
+                    <option value="Rental" />
+                    <option value="Bonus" />
+                    <option value="Interest" />
+                  </datalist>
                 </div>
                 <div>
                   <label className="text-slate-400 block mb-1">Amount (${currency})</label>
