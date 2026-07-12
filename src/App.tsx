@@ -194,6 +194,15 @@ export default function App() {
     localStorage.setItem('currency', currency);
   }, [currency]);
 
+  useEffect(() => {
+    if (window.innerWidth < 1024) {
+      const contentEl = document.getElementById('main-content-area');
+      if (contentEl) {
+        contentEl.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, [activeTab]);
+
   const formatCurrency = (amount: number) => {
     const symbol = currency === 'INR' ? '₹' : '$';
     const locale = currency === 'INR' ? 'en-IN' : 'en-US';
@@ -277,6 +286,12 @@ export default function App() {
     interestPaid: 0,
     remainingBalance: 0
   });
+
+  // Expense & Income Category Selection Helper States
+  const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<string>('Food');
+  const [customExpenseCategory, setCustomExpenseCategory] = useState<string>('');
+  const [selectedIncomeCategory, setSelectedIncomeCategory] = useState<string>('Salary');
+  const [customIncomeCategory, setCustomIncomeCategory] = useState<string>('');
 
   // Expense Form State
   const [newExpense, setNewExpense] = useState<Partial<Expense>>({
@@ -572,12 +587,13 @@ export default function App() {
   // Handle Add Expense Submission
   const handleCreateExpense = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newExpense.amount || !newExpense.category) return;
+    const finalCategory = selectedExpenseCategory === 'Others' ? customExpenseCategory || 'Others' : selectedExpenseCategory;
+    if (!newExpense.amount || !finalCategory) return;
 
     const expenseToAdd: Expense = {
       id: `exp-${Date.now()}`,
       date: newExpense.date || new Date().toISOString().split('T')[0],
-      category: newExpense.category,
+      category: finalCategory,
       subCategory: newExpense.subCategory || 'General',
       amount: Number(newExpense.amount),
       paymentMethod: newExpense.paymentMethod as any,
@@ -614,17 +630,20 @@ export default function App() {
       setExpenses([...expenses, expenseToAdd]);
     }
     setShowAddExpenseModal(false);
+    setSelectedExpenseCategory('Food');
+    setCustomExpenseCategory('');
   };
 
   // Handle Add Income Submission
   const handleCreateIncome = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newIncome.amount || !newIncome.category) return;
+    const finalCategory = selectedIncomeCategory === 'Others' ? customIncomeCategory || 'Others' : selectedIncomeCategory;
+    if (!newIncome.amount || !finalCategory) return;
 
     const incomeToAdd: Income = {
       id: `inc-${Date.now()}`,
       date: newIncome.date || new Date().toISOString().split('T')[0],
-      category: newIncome.category as any,
+      category: finalCategory as any,
       amount: Number(newIncome.amount),
       notes: newIncome.notes,
       accountId: newIncome.accountId
@@ -642,6 +661,8 @@ export default function App() {
 
     setIncomes([...incomes, incomeToAdd]);
     setShowAddIncomeModal(false);
+    setSelectedIncomeCategory('Salary');
+    setCustomIncomeCategory('');
   };
 
   // Handle Add Investment Submission
@@ -1034,7 +1055,7 @@ export default function App() {
         </aside>
 
         {/* WORKSPACE VIEWPORT */}
-        <main className="flex-1 p-6 lg:p-8 overflow-x-hidden space-y-6">
+        <main id="main-content-area" className="flex-1 p-6 lg:p-8 overflow-x-hidden space-y-6">
           
           {/* TAB 1: DASHBOARD */}
           {activeTab === 'dashboard' && (
@@ -2382,14 +2403,29 @@ export default function App() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-slate-400 block mb-1">Category</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Food, Fuel, Rent"
-                    value={newExpense.category || ''}
-                    onChange={(e) => setNewExpense({ ...newExpense, category: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
+                  <select
+                    value={selectedExpenseCategory}
+                    onChange={(e) => setSelectedExpenseCategory(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none"
+                  >
+                    <option value="Food">Food</option>
+                    <option value="Utilities">Utilities</option>
+                    <option value="Medical">Medical</option>
+                    <option value="Fruits">Fruits</option>
+                    <option value="Veggies">Veggies</option>
+                    <option value="Groceries">Groceries</option>
+                    <option value="Others">Others</option>
+                  </select>
+                  {selectedExpenseCategory === 'Others' && (
+                    <input
+                      type="text"
+                      required
+                      placeholder="Type custom category..."
+                      value={customExpenseCategory}
+                      onChange={(e) => setCustomExpenseCategory(e.target.value)}
+                      className="w-full mt-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="text-slate-400 block mb-1">Amount (${currency})</label>
@@ -2456,14 +2492,26 @@ export default function App() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-slate-400 block mb-1">Category</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Salary, Bonus, Freelance"
-                    value={newIncome.category || ''}
-                    onChange={(e) => setNewIncome({ ...newIncome, category: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
+                  <select
+                    value={selectedIncomeCategory}
+                    onChange={(e) => setSelectedIncomeCategory(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none"
+                  >
+                    <option value="Salary">Salary</option>
+                    <option value="Business">Business</option>
+                    <option value="Freelance">Freelance</option>
+                    <option value="Others">Others</option>
+                  </select>
+                  {selectedIncomeCategory === 'Others' && (
+                    <input
+                      type="text"
+                      required
+                      placeholder="Type custom category..."
+                      value={customIncomeCategory}
+                      onChange={(e) => setCustomIncomeCategory(e.target.value)}
+                      className="w-full mt-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="text-slate-400 block mb-1">Amount (${currency})</label>
