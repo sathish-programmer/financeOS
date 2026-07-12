@@ -213,6 +213,7 @@ export default function App() {
   const [showAddInvestmentModal, setShowAddInvestmentModal] = useState<boolean>(false);
   const [showAddAssetModal, setShowAddAssetModal] = useState<boolean>(false);
   const [simulatedPrepayment, setSimulatedPrepayment] = useState<number>(0);
+  const [customLoanType, setCustomLoanType] = useState<string>('');
 
   // Investment & Asset Form State
   const [newInvestment, setNewInvestment] = useState<Partial<Investment>>({
@@ -421,7 +422,7 @@ export default function App() {
 
     const loanToAdd: Loan = {
       id: `loan-${Date.now()}`,
-      name: newLoan.name,
+      name: newLoan.type === 'OTHER' && customLoanType ? `${newLoan.name} (${customLoanType})` : newLoan.name,
       type: newLoan.type as LoanType,
       lenderName: newLoan.lenderName,
       loanNumber: newLoan.loanNumber,
@@ -464,6 +465,7 @@ export default function App() {
       setLoans([...loans, loanToAdd]);
     }
     setShowAddLoanModal(false);
+    setCustomLoanType('');
     confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
   };
 
@@ -2053,7 +2055,21 @@ export default function App() {
                     <option value="GOLD_LOAN">Gold Loan</option>
                     <option value="PERSONAL_LOAN">Personal Loan</option>
                     <option value="CREDIT_CARD">Credit Card</option>
+                    <option value="OTHER">Other</option>
                   </select>
+                  {newLoan.type === 'OTHER' && (
+                    <div className="mt-2">
+                      <label className="text-slate-400 block mb-1">Custom Loan Type</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Car Loan, Friend Loan"
+                        value={customLoanType}
+                        onChange={(e) => setCustomLoanType(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="text-slate-400 block mb-1">Original Loan Amount (${currency})</label>
