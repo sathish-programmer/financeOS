@@ -1,0 +1,224 @@
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum LoanType {
+  HOME_LOAN
+  GOLD_LOAN
+  PERSONAL_LOAN
+  VEHICLE_LOAN
+  EDUCATION_LOAN
+  BUSINESS_LOAN
+  FRIEND_LOAN
+  FAMILY_LOAN
+  CREDIT_CARD
+  OTHER
+}
+
+enum InterestType {
+  FIXED
+  FLOATING
+}
+
+enum LoanStatus {
+  ACTIVE
+  CLOSED
+  OVERDUE
+  RENEWAL_DUE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum RecurringType {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CREDIT_CARD
+  DEBIT_CARD
+  NET_BANKING
+  WALLET
+  CHEQUE
+}
+
+model User {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  email        String        @unique
+  passwordHash String
+  name         String
+  role         Role          @default(USER)
+  currency     String        @default("INR")
+  language     String        @default("en")
+  theme        String        @default("dark")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  loans        Loan[]
+  expenses     Expense[]
+  budgets      Budget[]
+  accounts     Account[]
+  investments  Investment[]
+  assets       Asset[]
+  notifications Notification[]
+}
+
+model Account {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  type         String        // CASH, SAVINGS, CURRENT, CREDIT_CARD, WALLET, UPI
+  balance      Float         @default(0.0)
+  userId       String        @db.ObjectId
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses     Expense[]
+  payments     Payment[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Loan {
+  id                   String        @id @default(auto()) @map("_id") @db.ObjectId
+  name                 String
+  type                 LoanType
+  lenderName           String
+  loanNumber           String?
+  originalAmount       Float
+  currentOutstanding   Float
+  interestRate         Float
+  interestType         InterestType  @default(FIXED)
+  tenureMonths         Int
+  emi                  Float
+  startDate            DateTime
+  endDate              DateTime
+  processingFee        Float         @default(0.0)
+  insurance            Float         @default(0.0)
+  lateFee              Float         @default(0.0)
+  prepaymentCharges    Float         @default(0.0)
+  priority             Priority      @default(MEDIUM)
+  status               LoanStatus    @default(ACTIVE)
+  
+  // Specific Type fields
+  borrowerName         String?       // Friend/Family Loans
+  creditLimit          Float?        // Credit Cards
+  minDue               Float?        // Credit Cards
+  goldRenewalDate      DateTime?     // Gold Loans
+  goldPenaltyRate      Float?        // Gold Loans
+  goldAuctionWarning   Boolean       @default(false)
+  
+  userId               String        @db.ObjectId
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments             Payment[]
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+}
+
+model Payment {
+  id                 String        @id @default(auto()) @map("_id") @db.ObjectId
+  paymentDate        DateTime
+  paidAmount         Float
+  referenceNumber    String?
+  notes              String?
+  
+  // System calculated splits
+  principalPaid      Float
+  interestPaid       Float
+  remainingBalance   Float
+  interestSaved      Float         @default(0.0)
+  monthsSaved        Int           @default(0)
+  
+  // Advanced manual override flag
+  isManualOverride   Boolean       @default(false)
+  
+  loanId             String        @db.ObjectId
+  loan               Loan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  accountId          String?       @db.ObjectId
+  account            Account?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model Expense {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  date           DateTime
+  category       String
+  subCategory    String?
+  amount         Float
+  paymentMethod  PaymentMethod @default(CASH)
+  notes          String?
+  attachmentUrl  String?
+  isRecurring    Boolean       @default(false)
+  recurringType  RecurringType @default(NONE)
+  
+  userId         String        @db.ObjectId
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId      String?       @db.ObjectId
+  account            Account?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Budget {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  category       String
+  limitAmount    Float
+  month          Int
+  year           Int
+  userId         String        @db.ObjectId
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Investment {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  type           String        // MUTUAL_FUND, STOCK, GOLD, PPF, EPF, FD, RD, CRYPTO, LAND, HOUSE
+  investedValue  Float
+  currentValue   Float
+  gainLoss       Float
+  annualReturn   Float?
+  userId         String        @db.ObjectId
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Asset {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  type           String        // HOUSE, LAND, CAR, BIKE, GOLD, JEWELLERY, CASH, BANK_BALANCE, ELECTRONICS, OTHERS
+  value          Float
+  userId         String        @db.ObjectId
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Notification {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  title          String
+  message        String
+  type           String        // EMI_DUE, GOLD_RENEWAL, CREDIT_CARD_LIMIT, BUDGET_EXCEEDED, INSIGHT
+  isRead         Boolean       @default(false)
+  userId         String        @db.ObjectId
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+}
