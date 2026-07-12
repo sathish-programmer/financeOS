@@ -164,7 +164,9 @@ export function calculatePaymentSplit(
  */
 export function generatePayoffRecommendations(
   loans: Loan[],
-  extraPaymentAmount: number = 10000
+  extraPaymentAmount: number = 10000,
+  assets: any[] = [],
+  investments: any[] = []
 ): {
   strategy: string;
   recommendedLoan: Loan | null;
@@ -173,7 +175,12 @@ export function generatePayoffRecommendations(
 } {
   const activeLoans = loans.filter(l => l.status === 'ACTIVE' && l.currentOutstanding > 0);
   if (activeLoans.length === 0) {
-    return { strategy: 'N/A', recommendedLoan: null, reason: 'All loans closed!', allPriorities: [] };
+    return { 
+      strategy: 'N/A', 
+      recommendedLoan: null, 
+      reason: '🎉 Financial Freedom! You have zero active debts. All assets are growing compounding returns cleanly.', 
+      allPriorities: [] 
+    };
   }
 
   // Debt Avalanche: Sort by interest rate DESC
@@ -187,24 +194,57 @@ export function generatePayoffRecommendations(
     let weight = 0;
     if (l.priority === 'HIGH') weight += 50;
     if (l.type === 'GOLD_LOAN' || l.type === 'FRIEND_LOAN' || l.type === 'FAMILY_LOAN') weight += 30;
-    weight += Number(l.interestRate); // add rate component
+    weight += Number(l.interestRate);
     return weight;
   };
   const hybrid = [...activeLoans].sort((a, b) => getWeight(b) - getWeight(a));
 
   const bestAvalanche = avalanche[0];
   const bestSnowball = snowball[0];
-  const bestHybrid = hybrid[0];
 
-  // Calculate generic potential savings for highest interest rate loan if they paid extra
+  // Calculate potential savings for highest interest rate loan if they paid extra
   const rate = Number(bestAvalanche.interestRate);
   const monthlyRate = (rate / 100) / 12;
   const estimatedSavings = Math.round(extraPaymentAmount * monthlyRate * bestAvalanche.tenureMonths);
 
+  // BUILD REAL-TIME INTEL TIPS
+  let realTimeTip = '';
+
+  // 1. Check Receivables / Lent Money Overdue
+  const receivables = loans.filter(l => 
+    (l.type === 'FRIEND_LOAN' || l.type === 'FAMILY_LOAN') && 
+    l.status === 'ACTIVE' && 
+    l.currentOutstanding > 0
+  );
+  const highInterestDebt = activeLoans.find(l => Number(l.interestRate) >= 12 && l.type !== 'FRIEND_LOAN' && l.type !== 'FAMILY_LOAN');
+
+  if (receivables.length > 0 && highInterestDebt) {
+    const totalRec = receivables.reduce((sum, r) => sum + Number(r.currentOutstanding), 0);
+    realTimeTip += ` 💡 **Receivables Action**: You have ₹${totalRec.toLocaleString()} lent to friends/family. Collecting this cash would allow you to pay down your high-interest ${highInterestDebt.name} (${highInterestDebt.interestRate}% interest), saving you high compounding finance charges!`;
+  }
+
+  // 2. Check Liquid Assets (Gold, Stocks) vs High Interest Debt (Credit Cards, Personal Loans)
+  const ccDebt = activeLoans.find(l => l.type === 'CREDIT_CARD' && l.currentOutstanding > 5000);
+  const goldAsset = assets.find(a => (a.name || '').toLowerCase().includes('gold') || (a.type || '').toLowerCase().includes('gold'));
+  
+  if (ccDebt && goldAsset && Number(goldAsset.value) > 10000) {
+    realTimeTip += ` 💡 **Asset Tip**: Your credit card "${ccDebt.name}" has high-interest debt (${ccDebt.interestRate}%). Consider selling/liquidating some of your Gold asset (Value: ₹${Number(goldAsset.value).toLocaleString()}) to pay off the card balance. Clearing CC interest saves you more cash than gold appreciation!`;
+  }
+
+  // 3. Low Yield Investments (FD/PPF) vs High Interest Loan
+  const fdInvestment = investments.find(i => (i.type || '').includes('FD') || (i.name || '').toLowerCase().includes('fixed deposit'));
+  const activeHighDebt = activeLoans.find(l => Number(l.interestRate) > 9);
+  
+  if (fdInvestment && activeHighDebt && Number(fdInvestment.currentValue) > 10000) {
+    realTimeTip += ` 💡 **Investment Swap**: Your Fixed Deposit (₹${Number(fdInvestment.currentValue).toLocaleString()}) earns ~6% return, but your ${activeHighDebt.name} costs you ${activeHighDebt.interestRate}% interest. Liquidating the FD to close this debt yields an immediate net saving!`;
+  }
+
+  const baseReason = `Avalanche strategy recommends paying off the ${bestAvalanche.name} (${bestAvalanche.lenderName}) first because it has the highest interest rate of ${bestAvalanche.interestRate}%. Payoff Snowball suggests closing ${bestSnowball.name} next since it has the smallest remaining balance. If you pay an extra ₹${extraPaymentAmount.toLocaleString()} towards ${bestAvalanche.name} this month, you will save approximately ₹${estimatedSavings.toLocaleString()} in interest.`;
+
   return {
     strategy: 'Avalanche / Snowball / Hybrid Analysis',
     recommendedLoan: bestAvalanche,
-    reason: `Avalanche strategy recommends paying off the ${bestAvalanche.name} (${bestAvalanche.lenderName}) first because it has the highest interest rate of ${bestAvalanche.interestRate}%. Payoff Snowball suggests closing ${bestSnowball.name} next since it has the smallest remaining balance ($${bestSnowball.currentOutstanding}). If you pay an extra $${extraPaymentAmount} towards ${bestAvalanche.name} this month, you will save approximately $${estimatedSavings} in total interest.`,
+    reason: baseReason + (realTimeTip ? `\n\n**Real-time AI Asset Tips:**\n${realTimeTip}` : ''),
     allPriorities: hybrid.map((l, index) => ({
       loanId: l.id,
       rank: index + 1,

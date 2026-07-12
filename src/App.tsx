@@ -789,7 +789,7 @@ export default function App() {
   const monthlySavings = monthlyIncome - monthlyExpense;
 
   // Dynamic recommendations & Alerts
-  const advisor = generatePayoffRecommendations(loans, 15000);
+  const advisor = generatePayoffRecommendations(loans, 15000, assets, investments);
   const systemAlerts = generateSystemAlerts(loans, expenses, budgets, assets, incomes, totalBankBalance * 0.3);
 
   // Chart data: Debt breakdown
