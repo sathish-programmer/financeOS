@@ -223,6 +223,9 @@ export default function App() {
   const [showAddAssetModal, setShowAddAssetModal] = useState<boolean>(false);
   const [simulatedPrepayment, setSimulatedPrepayment] = useState<number>(0);
   const [customLoanType, setCustomLoanType] = useState<string>('');
+  const [newAccountName, setNewAccountName] = useState<string>('');
+  const [newAccountType, setNewAccountType] = useState<string>('SAVINGS');
+  const [newAccountBalance, setNewAccountBalance] = useState<number>(0);
 
   // Investment & Asset Form State
   const [newInvestment, setNewInvestment] = useState<Partial<Investment>>({
@@ -659,6 +662,61 @@ export default function App() {
     setIncomes([...incomes, incomeToAdd]);
     setShowAddIncomeModal(false);
     setSelectedIncomeCategory('Salary');
+  };
+
+  // Handle Add Account Submission
+  const handleCreateAccount = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAccountName) return;
+
+    const accountToAdd: Account = {
+      id: `acc-${Date.now()}`,
+      name: newAccountName,
+      type: newAccountType,
+      balance: Number(newAccountBalance),
+      userId: currentUser?.id || 'demo'
+    };
+
+    if (currentUser && !currentUser.token.startsWith('demo-')) {
+      fetch(`${API_BASE}/finance/accounts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.token
+        },
+        body: JSON.stringify(accountToAdd),
+      })
+      .then(res => res.json())
+      .then(savedAccount => {
+        setAccounts([...accounts, savedAccount]);
+      })
+      .catch(err => console.error(err));
+    } else {
+      setAccounts([...accounts, accountToAdd]);
+    }
+
+    setNewAccountName('');
+    setNewAccountBalance(0);
+  };
+
+  // Handle Delete Account
+  const handleDeleteAccount = (id: string) => {
+    if (confirm("Are you sure you want to delete this account? Expenses/payments using this account will not be deleted, but the account list will update.")) {
+      if (currentUser && !currentUser.token.startsWith('demo-')) {
+        fetch(`${API_BASE}/finance/accounts/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'x-user-id': currentUser.token
+          }
+        })
+        .then(() => {
+          setAccounts(accounts.filter(a => a.id !== id));
+        })
+        .catch(err => console.error(err));
+      } else {
+        setAccounts(accounts.filter(a => a.id !== id));
+      }
+    }
   };
 
   // Handle Add Investment Submission
@@ -1896,6 +1954,86 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Bank & Cash Accounts Manager */}
+                <div className="space-y-4 border-t md:border-t-0 md:border-l border-slate-200/50 dark:border-slate-800/80 md:pl-6 pt-6 md:pt-0">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide">Bank & Cash Accounts Manager</h3>
+                  
+                  {/* Account List */}
+                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                    {accounts.map(acc => (
+                      <div key={acc.id} className="p-3 rounded-xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{acc.name}</span>
+                          <span className="text-[10px] text-slate-400 capitalize">{(acc.type || '').toLowerCase()}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`text-xs font-bold ${acc.balance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {formatCurrency(acc.balance)}
+                          </span>
+                          <button
+                            onClick={() => handleDeleteAccount(acc.id)}
+                            className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                            title="Delete Account"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add New Account Form */}
+                  <form onSubmit={handleCreateAccount} className="space-y-3 p-4 rounded-xl bg-slate-100/30 dark:bg-slate-900/20 border border-slate-200/40 dark:border-slate-900/40 text-xs">
+                    <h4 className="font-bold text-slate-700 dark:text-slate-300">Add New Account</h4>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">Account Name</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. HDFC Bank, Wallet"
+                          value={newAccountName}
+                          onChange={(e) => setNewAccountName(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">Account Type</label>
+                        <select
+                          value={newAccountType}
+                          onChange={(e) => setNewAccountType(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="SAVINGS">Savings</option>
+                          <option value="CASH">Cash</option>
+                          <option value="CURRENT">Current</option>
+                          <option value="CREDIT_CARD">Credit Card</option>
+                          <option value="WALLET">Wallet</option>
+                          <option value="UPI">UPI</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-1">Starting Balance</label>
+                      <input
+                        type="number"
+                        placeholder="e.g. 25000"
+                        value={newAccountBalance || ''}
+                        onChange={(e) => setNewAccountBalance(Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold py-2 rounded-lg transition cursor-pointer"
+                    >
+                      Create Account
+                    </button>
+                  </form>
+                </div>
               </div>
             </div>
           )}

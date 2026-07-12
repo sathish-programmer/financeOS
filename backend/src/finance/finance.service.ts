@@ -22,6 +22,12 @@ export class FinanceService {
     });
   }
 
+  async deleteAccount(userId: string, id: string) {
+    return this.prisma.account.delete({
+      where: { id, userId },
+    });
+  }
+
   // Loans
   async getLoans(userId: string) {
     return this.prisma.loan.findMany({ where: { userId } });

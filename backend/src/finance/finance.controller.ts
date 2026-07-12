@@ -36,6 +36,12 @@ export class FinanceController {
     return this.financeService.createAccount(realId, body);
   }
 
+  @Delete('accounts/:id')
+  async deleteAccount(@Headers('x-user-id') userId: string, @Param('id') id: string) {
+    const realId = this.getRealUserId(userId);
+    return this.financeService.deleteAccount(realId, id);
+  }
+
   @Get('loans')
   async getLoans(@Headers('x-user-id') userId: string) {
     const realId = this.getRealUserId(userId);
