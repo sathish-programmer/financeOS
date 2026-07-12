@@ -122,15 +122,15 @@ export class FinanceService {
   }
 
   async createExpense(userId: string, data: any) {
-    const { id, ...cleanData } = data;
+    const { id, recurring, ...cleanData } = data;
     const expense = await this.prisma.expense.create({
       data: {
         ...cleanData,
         userId,
         amount: Number(cleanData.amount),
         date: new Date(cleanData.date),
-        isRecurring: cleanData.recurring && cleanData.recurring !== 'NONE',
-        recurringType: cleanData.recurring || 'NONE',
+        isRecurring: recurring && recurring !== 'NONE',
+        recurringType: recurring || 'NONE',
       },
     });
 

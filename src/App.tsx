@@ -52,6 +52,9 @@ import {
   Legend
 } from 'recharts';
 import confetti from 'canvas-confetti';
+// API endpoint base configuration
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
 import type {
   Loan,
   Payment,
@@ -107,7 +110,7 @@ export default function App() {
 
     try {
       const endpoint = authMode === 'LOGIN' ? 'login' : 'register';
-      const response = await fetch(`http://localhost:3000/api/auth/${endpoint}`, {
+      const response = await fetch(`${API_BASE}/auth/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -316,11 +319,11 @@ export default function App() {
 
       try {
         const [resAcc, resLoans, resPay, resExp, resBudg] = await Promise.all([
-          fetch('http://localhost:3000/api/finance/accounts', { headers }),
-          fetch('http://localhost:3000/api/finance/loans', { headers }),
-          fetch('http://localhost:3000/api/finance/payments', { headers }),
-          fetch('http://localhost:3000/api/finance/expenses', { headers }),
-          fetch('http://localhost:3000/api/finance/budgets', { headers })
+          fetch(`${API_BASE}/finance/accounts`, { headers }),
+          fetch(`${API_BASE}/finance/loans`, { headers }),
+          fetch(`${API_BASE}/finance/payments`, { headers }),
+          fetch(`${API_BASE}/finance/expenses`, { headers }),
+          fetch(`${API_BASE}/finance/budgets`, { headers })
         ]);
 
         if (resAcc.ok) setAccounts(await resAcc.json());
@@ -444,7 +447,7 @@ export default function App() {
     };
 
     if (currentUser && !currentUser.token.startsWith('demo-')) {
-      fetch('http://localhost:3000/api/finance/loans', {
+      fetch(`${API_BASE}/finance/loans`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -540,7 +543,7 @@ export default function App() {
     }
 
     if (currentUser && !currentUser.token.startsWith('demo-')) {
-      fetch('http://localhost:3000/api/finance/payments', {
+      fetch(`${API_BASE}/finance/payments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -592,7 +595,7 @@ export default function App() {
     }
 
     if (currentUser && !currentUser.token.startsWith('demo-')) {
-      fetch('http://localhost:3000/api/finance/expenses', {
+      fetch(`${API_BASE}/finance/expenses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1654,13 +1657,13 @@ export default function App() {
               <div className="glass-card rounded-2xl p-5 space-y-4">
                 <h3 className="text-sm font-bold">Transaction History</h3>
                 <div className="space-y-3">
-                  {expenses.map(e => (
-                    <div key={e.id} className="p-3 rounded-xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
+                  {expenses.map((e, idx) => (
+                    <div key={e.id || idx} className="p-3 rounded-xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
                       <div>
                         <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{e.category}</span>
                         <span className="text-[9px] text-slate-400">{e.date} • {e.paymentMethod}</span>
                       </div>
-                      <span className="text-xs font-bold text-rose-500">-${e.amount.toLocaleString()}</span>
+                      <span className="text-xs font-bold text-rose-500">-{formatCurrency(e.amount || 0)}</span>
                     </div>
                   ))}
                 </div>
