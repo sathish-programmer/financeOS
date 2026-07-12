@@ -2366,18 +2366,14 @@ export default function App() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-slate-400 block mb-1">Category</label>
-                  <select
-                    value={newExpense.category}
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Food, Fuel, Rent"
+                    value={newExpense.category || ''}
                     onChange={(e) => setNewExpense({ ...newExpense, category: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none"
-                  >
-                    <option value="Food">Food</option>
-                    <option value="Fuel">Fuel</option>
-                    <option value="Shopping">Shopping</option>
-                    <option value="Rent">Rent</option>
-                    <option value="Utilities">Utilities</option>
-                    <option value="Medical">Medical</option>
-                  </select>
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
                 </div>
                 <div>
                   <label className="text-slate-400 block mb-1">Amount (${currency})</label>
@@ -2444,16 +2440,14 @@ export default function App() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-slate-400 block mb-1">Category</label>
-                  <select
-                    value={newIncome.category}
-                    onChange={(e) => setNewIncome({ ...newIncome, category: e.target.value as any })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none"
-                  >
-                    <option value="Salary">Salary</option>
-                    <option value="Bonus">Bonus</option>
-                    <option value="Freelance">Freelance</option>
-                    <option value="Business">Business</option>
-                  </select>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Salary, Bonus, Freelance"
+                    value={newIncome.category || ''}
+                    onChange={(e) => setNewIncome({ ...newIncome, category: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
                 </div>
                 <div>
                   <label className="text-slate-400 block mb-1">Amount (${currency})</label>
