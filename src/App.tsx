@@ -673,9 +673,9 @@ export default function App() {
     const accountToAdd: Account = {
       id: `acc-${Date.now()}`,
       name: newAccountName,
-      type: newAccountType,
+      type: newAccountType as any,
       balance: Number(newAccountBalance),
-      userId: currentUser?.id || 'demo'
+      userId: currentUser?.token || 'demo'
     };
 
     if (currentUser && !currentUser.token.startsWith('demo-')) {
