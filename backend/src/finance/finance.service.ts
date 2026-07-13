@@ -215,4 +215,22 @@ export class FinanceService {
       },
     });
   }
+
+  async deleteExpense(userId: string, id: string) {
+    return this.prisma.expense.delete({
+      where: { id, userId },
+    });
+  }
+
+  async deleteAsset(userId: string, id: string) {
+    return this.prisma.asset.delete({
+      where: { id, userId },
+    });
+  }
+
+  async deleteInvestment(userId: string, id: string) {
+    return this.prisma.investment.delete({
+      where: { id, userId },
+    });
+  }
 }

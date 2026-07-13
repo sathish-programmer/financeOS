@@ -119,4 +119,22 @@ export class FinanceController {
     const realId = this.getRealUserId(userId);
     return this.financeService.createInvestment(realId, body);
   }
+
+  @Delete('expenses/:id')
+  async deleteExpense(@Headers('x-user-id') userId: string, @Param('id') id: string) {
+    const realId = this.getRealUserId(userId);
+    return this.financeService.deleteExpense(realId, id);
+  }
+
+  @Delete('assets/:id')
+  async deleteAsset(@Headers('x-user-id') userId: string, @Param('id') id: string) {
+    const realId = this.getRealUserId(userId);
+    return this.financeService.deleteAsset(realId, id);
+  }
+
+  @Delete('investments/:id')
+  async deleteInvestment(@Headers('x-user-id') userId: string, @Param('id') id: string) {
+    const realId = this.getRealUserId(userId);
+    return this.financeService.deleteInvestment(realId, id);
+  }
 }

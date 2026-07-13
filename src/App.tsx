@@ -720,6 +720,87 @@ export default function App() {
     }
   };
 
+  // Handle Delete Loan
+  const handleDeleteLoan = (id: string) => {
+    if (confirm("Are you sure you want to delete this loan? All payments associated with it will also be deleted.")) {
+      if (currentUser && !currentUser.token.startsWith('demo-')) {
+        fetch(`${API_BASE}/finance/loans/${id}`, {
+          method: 'DELETE',
+          headers: { 'x-user-id': currentUser.token }
+        })
+        .then(() => {
+          setLoans(loans.filter(l => l.id !== id));
+          setPayments(payments.filter(p => p.loanId !== id));
+        })
+        .catch(err => console.error(err));
+      } else {
+        setLoans(loans.filter(l => l.id !== id));
+        setPayments(payments.filter(p => p.loanId !== id));
+      }
+    }
+  };
+
+  // Handle Delete Expense
+  const handleDeleteExpense = (id: string) => {
+    if (confirm("Are you sure you want to delete this expense?")) {
+      if (currentUser && !currentUser.token.startsWith('demo-')) {
+        fetch(`${API_BASE}/finance/expenses/${id}`, {
+          method: 'DELETE',
+          headers: { 'x-user-id': currentUser.token }
+        })
+        .then(() => {
+          setExpenses(expenses.filter(e => e.id !== id));
+        })
+        .catch(err => console.error(err));
+      } else {
+        setExpenses(expenses.filter(e => e.id !== id));
+      }
+    }
+  };
+
+  // Handle Delete Income
+  const handleDeleteIncome = (id: string) => {
+    if (confirm("Are you sure you want to delete this income?")) {
+      setIncomes(incomes.filter(i => i.id !== id));
+    }
+  };
+
+  // Handle Delete Investment
+  const handleDeleteInvestment = (id: string) => {
+    if (confirm("Are you sure you want to delete this investment?")) {
+      if (currentUser && !currentUser.token.startsWith('demo-')) {
+        fetch(`${API_BASE}/finance/investments/${id}`, {
+          method: 'DELETE',
+          headers: { 'x-user-id': currentUser.token }
+        })
+        .then(() => {
+          setInvestments(investments.filter(i => i.id !== id));
+        })
+        .catch(err => console.error(err));
+      } else {
+        setInvestments(investments.filter(i => i.id !== id));
+      }
+    }
+  };
+
+  // Handle Delete Asset
+  const handleDeleteAsset = (id: string) => {
+    if (confirm("Are you sure you want to delete this asset?")) {
+      if (currentUser && !currentUser.token.startsWith('demo-')) {
+        fetch(`${API_BASE}/finance/assets/${id}`, {
+          method: 'DELETE',
+          headers: { 'x-user-id': currentUser.token }
+        })
+        .then(() => {
+          setAssets(assets.filter(a => a.id !== id));
+        })
+        .catch(err => console.error(err));
+      } else {
+        setAssets(assets.filter(a => a.id !== id));
+      }
+    }
+  };
+
   // Handle Add Investment Submission
   const handleCreateInvestment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1526,10 +1607,9 @@ export default function App() {
                               Amortization Schedule
                             </button>
                             <button
-                              onClick={() => {
-                                setLoans(loans.filter(l => l.id !== loan.id));
-                              }}
-                              className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 rounded-lg transition"
+                              onClick={() => handleDeleteLoan(loan.id)}
+                              className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 rounded-lg transition cursor-pointer"
+                              title="Delete Loan"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -1755,19 +1835,60 @@ export default function App() {
                 })}
               </div>
 
-              {/* EXPENSE LEDGER */}
-              <div className="glass-card rounded-2xl p-5 space-y-4">
-                <h3 className="text-sm font-bold">Transaction History</h3>
-                <div className="space-y-3">
-                  {expenses.map((e, idx) => (
-                    <div key={e.id || idx} className="p-3 rounded-xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
-                      <div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{e.category}</span>
-                        <span className="text-[9px] text-slate-400">{e.date} • {e.paymentMethod}</span>
+              {/* LEDGERS GRID */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* EXPENSE LEDGER */}
+                <div className="glass-card rounded-2xl p-5 space-y-4">
+                  <h3 className="text-sm font-bold">Transaction History (Expenses)</h3>
+                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                    {expenses.map((e, idx) => (
+                      <div key={e.id || idx} className="p-3 rounded-xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{e.category}</span>
+                          <span className="text-[9px] text-slate-400">{e.date} • {e.paymentMethod}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-bold text-rose-500">-{formatCurrency(e.amount || 0)}</span>
+                          <button
+                            onClick={() => handleDeleteExpense(e.id)}
+                            className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                            title="Delete Expense"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
-                      <span className="text-xs font-bold text-rose-500">-{formatCurrency(e.amount || 0)}</span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                </div>
+
+                {/* INCOME LEDGER */}
+                <div className="glass-card rounded-2xl p-5 space-y-4">
+                  <h3 className="text-sm font-bold">Income Credit History</h3>
+                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                    {incomes.length === 0 ? (
+                      <p className="text-xs text-slate-400 py-4 text-center">No income credits logged yet.</p>
+                    ) : (
+                      incomes.map((inc, idx) => (
+                        <div key={inc.id || idx} className="p-3 rounded-xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
+                          <div>
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{inc.category}</span>
+                            <span className="text-[9px] text-slate-400">{inc.date}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-bold text-emerald-500">+{formatCurrency(inc.amount || 0)}</span>
+                            <button
+                              onClick={() => handleDeleteIncome(inc.id)}
+                              className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                              title="Delete Income"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1812,11 +1933,20 @@ export default function App() {
                           <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{inv.name}</span>
                           <span className="text-[9px] text-slate-400">{inv.type}</span>
                         </div>
-                        <div className="text-right">
-                          <span className="text-xs font-bold block">${inv.currentValue.toLocaleString()}</span>
-                          <span className={`text-[10px] font-bold ${gain >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {gain >= 0 ? '+' : ''}{pct.toFixed(1)}% (${gain.toLocaleString()})
-                          </span>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <span className="text-xs font-bold block">{formatCurrency(inv.currentValue || 0)}</span>
+                            <span className={`text-[10px] font-bold ${gain >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              {gain >= 0 ? '+' : ''}{pct.toFixed(1)}% ({formatCurrency(gain)})
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteInvestment(inv.id)}
+                            className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                            title="Delete Investment"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </div>
                     );
@@ -1834,7 +1964,16 @@ export default function App() {
                         <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{ast.name}</span>
                         <span className="text-[9px] text-slate-400">{ast.type}</span>
                       </div>
-                      <span className="text-xs font-bold text-emerald-500">{formatCurrency(ast.value)}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold text-emerald-500">{formatCurrency(ast.value)}</span>
+                        <button
+                          onClick={() => handleDeleteAsset(ast.id)}
+                          className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                          title="Delete Asset"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
