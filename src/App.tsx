@@ -981,7 +981,7 @@ export default function App() {
     // Generate CSV string
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.map(val => {
+      ...rows.map((row: any[]) => row.map((val: any) => {
         const strVal = String(val).replace(/"/g, '""');
         return `"${strVal}"`;
       }).join(','))
