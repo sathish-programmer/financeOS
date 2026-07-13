@@ -266,6 +266,11 @@ export default function App() {
     });
   };
 
+  // Budget Modal helper states
+  const [showAddBudgetModal, setShowAddBudgetModal] = useState<boolean>(false);
+  const [newBudgetCategory, setNewBudgetCategory] = useState<string>('');
+  const [newBudgetLimit, setNewBudgetLimit] = useState<number>(0);
+
   // Investment & Asset Form State
   const [newInvestment, setNewInvestment] = useState<Partial<Investment>>({
     name: '',
@@ -944,6 +949,72 @@ export default function App() {
         } else {
           setAssets(assets.filter(a => a.id !== id));
           showToast("Asset deleted successfully!");
+        }
+      }
+    );
+  };
+
+  // Handle Create Budget
+  const handleCreateBudget = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBudgetCategory || !newBudgetLimit) return;
+    
+    const budgetToAdd: Budget = {
+      id: `bud-${Date.now()}`,
+      category: newBudgetCategory,
+      limitAmount: Number(newBudgetLimit)
+    };
+
+    if (currentUser && !currentUser.token.startsWith('demo-')) {
+      fetch(`${API_BASE}/finance/budgets`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.token
+        },
+        body: JSON.stringify(budgetToAdd),
+      })
+      .then(res => res.json())
+      .then(savedBudget => {
+        setBudgets([...budgets, savedBudget]);
+        showToast("Budget configured successfully!");
+      })
+      .catch(err => {
+        console.error(err);
+        showToast("Failed to create budget", "error");
+      });
+    } else {
+      setBudgets([...budgets, budgetToAdd]);
+      showToast("Budget configured successfully!");
+    }
+
+    setNewBudgetCategory('');
+    setNewBudgetLimit(0);
+    setShowAddBudgetModal(false);
+  };
+
+  // Handle Delete Budget
+  const handleDeleteBudget = (id: string) => {
+    triggerConfirm(
+      "Delete Budget Limit",
+      "Are you sure you want to remove this category budget limit?",
+      () => {
+        if (currentUser && !currentUser.token.startsWith('demo-')) {
+          fetch(`${API_BASE}/finance/budgets/${id}`, {
+            method: 'DELETE',
+            headers: { 'x-user-id': currentUser.token }
+          })
+          .then(() => {
+            setBudgets(budgets.filter(b => b.id !== id));
+            showToast("Budget deleted successfully!");
+          })
+          .catch(err => {
+            console.error(err);
+            showToast("Failed to delete budget", "error");
+          });
+        } else {
+          setBudgets(budgets.filter(b => b.id !== id));
+          showToast("Budget deleted successfully!");
         }
       }
     );
@@ -1916,6 +1987,12 @@ export default function App() {
                 </div>
                 <div className="flex gap-2">
                   <button
+                    onClick={() => setShowAddBudgetModal(true)}
+                    className="glow-btn bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="h-4 w-4" /> Configure Budget
+                  </button>
+                  <button
                     onClick={() => setShowAddExpenseModal(true)}
                     className="glow-btn bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5"
                   >
@@ -2018,9 +2095,18 @@ export default function App() {
                     <div key={b.id} className="glass-card rounded-2xl p-5 border border-slate-200/40 dark:border-slate-900/40 space-y-3">
                       <div className="flex justify-between items-center">
                         <h4 className="text-xs font-bold text-slate-800 dark:text-slate-300">{b.category}</h4>
-                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                          pct >= 85 ? 'bg-rose-500/10' : 'bg-emerald-500/10'
-                        } ${textColor}`}>{pct.toFixed(0)}% Used</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                            pct >= 85 ? 'bg-rose-500/10' : 'bg-emerald-500/10'
+                          } ${textColor}`}>{pct.toFixed(0)}% Used</span>
+                          <button
+                            onClick={() => handleDeleteBudget(b.id)}
+                            className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                            title="Delete Budget Limit"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                       
                       <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -3089,6 +3175,52 @@ export default function App() {
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-lg cursor-pointer"
               >
                 {editingIncome ? "Save Changes" : "Log Income"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+
+      {/* DIALOG MODAL: CONFIGURE BUDGET LIMIT */}
+      {showAddBudgetModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md glass-panel rounded-3xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-slate-800/80 p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-bold">Configure Category Budget Limit</h3>
+              <button onClick={() => setShowAddBudgetModal(false)} className="text-slate-400 hover:text-white font-bold">✕</button>
+            </div>
+
+            <form onSubmit={handleCreateBudget} className="space-y-3 text-xs">
+              <div>
+                <label className="text-slate-400 block mb-1">Category Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Food, Groceries, Shopping..."
+                  value={newBudgetCategory}
+                  onChange={(e) => setNewBudgetCategory(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-400 block mb-1">Monthly Budget Limit (${currency})</label>
+                <input
+                  type="number"
+                  required
+                  placeholder="e.g. 5000"
+                  value={newBudgetLimit || ''}
+                  onChange={(e) => setNewBudgetLimit(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-lg cursor-pointer"
+              >
+                Set Budget Limit
               </button>
             </form>
           </div>

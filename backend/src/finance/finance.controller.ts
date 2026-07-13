@@ -161,4 +161,10 @@ export class FinanceController {
     const realId = this.getRealUserId(userId);
     return this.financeService.updateInvestment(realId, id, body);
   }
+
+  @Delete('budgets/:id')
+  async deleteBudget(@Headers('x-user-id') userId: string, @Param('id') id: string) {
+    const realId = this.getRealUserId(userId);
+    return this.financeService.deleteBudget(realId, id);
+  }
 }

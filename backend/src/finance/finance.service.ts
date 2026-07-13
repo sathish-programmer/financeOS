@@ -289,4 +289,10 @@ export class FinanceService {
       }
     });
   }
+
+  async deleteBudget(userId: string, id: string) {
+    return this.prisma.budget.delete({
+      where: { id, userId },
+    });
+  }
 }
