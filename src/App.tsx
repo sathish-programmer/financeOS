@@ -226,6 +226,45 @@ export default function App() {
   const [newAccountName, setNewAccountName] = useState<string>('');
   const [newAccountType, setNewAccountType] = useState<string>('SAVINGS');
   const [newAccountBalance, setNewAccountBalance] = useState<number>(0);
+  // Editing State Variables
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editingIncome, setEditingIncome] = useState<Income | null>(null);
+  const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
+  const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
+  const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+
+  // Modern Toast & Confirm Dialog State
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3000);
+  };
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
+
+  const triggerConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmDialog({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
 
   // Investment & Asset Form State
   const [newInvestment, setNewInvestment] = useState<Partial<Investment>>({
@@ -592,6 +631,48 @@ export default function App() {
     const finalCategory = selectedExpenseCategory || 'General';
     if (!newExpense.amount || !finalCategory) return;
 
+    if (editingExpense) {
+      const updatedExpense = {
+        ...editingExpense,
+        date: newExpense.date || editingExpense.date,
+        category: finalCategory,
+        subCategory: newExpense.subCategory || editingExpense.subCategory || 'General',
+        amount: Number(newExpense.amount),
+        paymentMethod: newExpense.paymentMethod as any,
+        notes: newExpense.notes,
+        recurring: (newExpense.recurring || 'NONE') as any,
+        accountId: newExpense.accountId
+      };
+
+      if (currentUser && !currentUser.token.startsWith('demo-')) {
+        fetch(`${API_BASE}/finance/expenses/${editingExpense.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.token
+          },
+          body: JSON.stringify(updatedExpense),
+        })
+        .then(res => res.json())
+        .then(savedExpense => {
+          setExpenses(expenses.map(e => e.id === editingExpense.id ? savedExpense : e));
+          showToast("Expense updated successfully!");
+        })
+        .catch(err => {
+          console.error(err);
+          showToast("Failed to update expense", "error");
+        });
+      } else {
+        setExpenses(expenses.map(e => e.id === editingExpense.id ? { ...e, ...updatedExpense } : e));
+        showToast("Expense updated successfully!");
+      }
+
+      setEditingExpense(null);
+      setShowAddExpenseModal(false);
+      setSelectedExpenseCategory('Food');
+      return;
+    }
+
     const expenseToAdd: Expense = {
       id: `exp-${Date.now()}`,
       date: newExpense.date || new Date().toISOString().split('T')[0],
@@ -640,6 +721,24 @@ export default function App() {
     e.preventDefault();
     const finalCategory = selectedIncomeCategory || 'General';
     if (!newIncome.amount || !finalCategory) return;
+
+    if (editingIncome) {
+      const updatedIncome = {
+        ...editingIncome,
+        date: newIncome.date || editingIncome.date,
+        category: finalCategory as any,
+        amount: Number(newIncome.amount),
+        notes: newIncome.notes,
+        accountId: newIncome.accountId
+      };
+
+      setIncomes(incomes.map(i => i.id === editingIncome.id ? updatedIncome : i));
+      showToast("Income record updated successfully!");
+      setEditingIncome(null);
+      setShowAddIncomeModal(false);
+      setSelectedIncomeCategory('Salary');
+      return;
+    }
 
     const incomeToAdd: Income = {
       id: `inc-${Date.now()}`,
@@ -701,103 +800,206 @@ export default function App() {
 
   // Handle Delete Account
   const handleDeleteAccount = (id: string) => {
-    if (confirm("Are you sure you want to delete this account? Expenses/payments using this account will not be deleted, but the account list will update.")) {
-      if (currentUser && !currentUser.token.startsWith('demo-')) {
-        fetch(`${API_BASE}/finance/accounts/${id}`, {
-          method: 'DELETE',
-          headers: {
-            'x-user-id': currentUser.token
-          }
-        })
-        .then(() => {
+    triggerConfirm(
+      "Delete Account",
+      "Are you sure you want to delete this account? Expenses/payments using this account will not be deleted, but the account list will update.",
+      () => {
+        if (currentUser && !currentUser.token.startsWith('demo-')) {
+          fetch(`${API_BASE}/finance/accounts/${id}`, {
+            method: 'DELETE',
+            headers: {
+              'x-user-id': currentUser.token
+            }
+          })
+          .then(() => {
+            setAccounts(accounts.filter(a => a.id !== id));
+            showToast("Account deleted successfully!");
+          })
+          .catch(err => {
+            console.error(err);
+            showToast("Failed to delete account", "error");
+          });
+        } else {
           setAccounts(accounts.filter(a => a.id !== id));
-        })
-        .catch(err => console.error(err));
-      } else {
-        setAccounts(accounts.filter(a => a.id !== id));
+          showToast("Account deleted successfully!");
+        }
       }
-    }
+    );
   };
 
   // Handle Delete Loan
   const handleDeleteLoan = (id: string) => {
-    if (confirm("Are you sure you want to delete this loan? All payments associated with it will also be deleted.")) {
-      if (currentUser && !currentUser.token.startsWith('demo-')) {
-        fetch(`${API_BASE}/finance/loans/${id}`, {
-          method: 'DELETE',
-          headers: { 'x-user-id': currentUser.token }
-        })
-        .then(() => {
+    triggerConfirm(
+      "Delete Loan Record",
+      "Are you sure you want to delete this loan? All payments associated with it will also be deleted.",
+      () => {
+        if (currentUser && !currentUser.token.startsWith('demo-')) {
+          fetch(`${API_BASE}/finance/loans/${id}`, {
+            method: 'DELETE',
+            headers: { 'x-user-id': currentUser.token }
+          })
+          .then(() => {
+            setLoans(loans.filter(l => l.id !== id));
+            setPayments(payments.filter(p => p.loanId !== id));
+            showToast("Loan deleted successfully!");
+          })
+          .catch(err => {
+            console.error(err);
+            showToast("Failed to delete loan", "error");
+          });
+        } else {
           setLoans(loans.filter(l => l.id !== id));
           setPayments(payments.filter(p => p.loanId !== id));
-        })
-        .catch(err => console.error(err));
-      } else {
-        setLoans(loans.filter(l => l.id !== id));
-        setPayments(payments.filter(p => p.loanId !== id));
+          showToast("Loan deleted successfully!");
+        }
       }
-    }
+    );
   };
 
   // Handle Delete Expense
   const handleDeleteExpense = (id: string) => {
-    if (confirm("Are you sure you want to delete this expense?")) {
-      if (currentUser && !currentUser.token.startsWith('demo-')) {
-        fetch(`${API_BASE}/finance/expenses/${id}`, {
-          method: 'DELETE',
-          headers: { 'x-user-id': currentUser.token }
-        })
-        .then(() => {
+    triggerConfirm(
+      "Delete Expense Transaction",
+      "Are you sure you want to delete this expense?",
+      () => {
+        if (currentUser && !currentUser.token.startsWith('demo-')) {
+          fetch(`${API_BASE}/finance/expenses/${id}`, {
+            method: 'DELETE',
+            headers: { 'x-user-id': currentUser.token }
+          })
+          .then(() => {
+            setExpenses(expenses.filter(e => e.id !== id));
+            showToast("Expense deleted successfully!");
+          })
+          .catch(err => {
+            console.error(err);
+            showToast("Failed to delete expense", "error");
+          });
+        } else {
           setExpenses(expenses.filter(e => e.id !== id));
-        })
-        .catch(err => console.error(err));
-      } else {
-        setExpenses(expenses.filter(e => e.id !== id));
+          showToast("Expense deleted successfully!");
+        }
       }
-    }
+    );
   };
 
   // Handle Delete Income
   const handleDeleteIncome = (id: string) => {
-    if (confirm("Are you sure you want to delete this income?")) {
-      setIncomes(incomes.filter(i => i.id !== id));
-    }
+    triggerConfirm(
+      "Delete Income Record",
+      "Are you sure you want to delete this income?",
+      () => {
+        setIncomes(incomes.filter(i => i.id !== id));
+        showToast("Income record deleted successfully!");
+      }
+    );
   };
 
   // Handle Delete Investment
   const handleDeleteInvestment = (id: string) => {
-    if (confirm("Are you sure you want to delete this investment?")) {
-      if (currentUser && !currentUser.token.startsWith('demo-')) {
-        fetch(`${API_BASE}/finance/investments/${id}`, {
-          method: 'DELETE',
-          headers: { 'x-user-id': currentUser.token }
-        })
-        .then(() => {
+    triggerConfirm(
+      "Delete Investment Record",
+      "Are you sure you want to delete this investment?",
+      () => {
+        if (currentUser && !currentUser.token.startsWith('demo-')) {
+          fetch(`${API_BASE}/finance/investments/${id}`, {
+            method: 'DELETE',
+            headers: { 'x-user-id': currentUser.token }
+          })
+          .then(() => {
+            setInvestments(investments.filter(i => i.id !== id));
+            showToast("Investment deleted successfully!");
+          })
+          .catch(err => {
+            console.error(err);
+            showToast("Failed to delete investment", "error");
+          });
+        } else {
           setInvestments(investments.filter(i => i.id !== id));
-        })
-        .catch(err => console.error(err));
-      } else {
-        setInvestments(investments.filter(i => i.id !== id));
+          showToast("Investment deleted successfully!");
+        }
       }
-    }
+    );
   };
 
   // Handle Delete Asset
   const handleDeleteAsset = (id: string) => {
-    if (confirm("Are you sure you want to delete this asset?")) {
-      if (currentUser && !currentUser.token.startsWith('demo-')) {
-        fetch(`${API_BASE}/finance/assets/${id}`, {
-          method: 'DELETE',
-          headers: { 'x-user-id': currentUser.token }
-        })
-        .then(() => {
+    triggerConfirm(
+      "Delete Asset Record",
+      "Are you sure you want to delete this asset?",
+      () => {
+        if (currentUser && !currentUser.token.startsWith('demo-')) {
+          fetch(`${API_BASE}/finance/assets/${id}`, {
+            method: 'DELETE',
+            headers: { 'x-user-id': currentUser.token }
+          })
+          .then(() => {
+            setAssets(assets.filter(a => a.id !== id));
+            showToast("Asset deleted successfully!");
+          })
+          .catch(err => {
+            console.error(err);
+            showToast("Failed to delete asset", "error");
+          });
+        } else {
           setAssets(assets.filter(a => a.id !== id));
-        })
-        .catch(err => console.error(err));
-      } else {
-        setAssets(assets.filter(a => a.id !== id));
+          showToast("Asset deleted successfully!");
+        }
       }
+    );
+  };
+
+  // Handle Exporter to CSV
+  const exportToCSV = (reportName: string) => {
+    let headers: string[] = [];
+    let rows: any[] = [];
+    let filename = `${reportName.toLowerCase().replace(/\s+/g, '_')}_export.csv`;
+
+    if (reportName === 'Monthly Report' || reportName === 'Expense Report') {
+      headers = ['ID', 'Date', 'Category', 'Amount', 'Payment Method', 'Notes'];
+      rows = expenses.map(e => [e.id, e.date, e.category, e.amount, e.paymentMethod, e.notes || '']);
+    } else if (reportName === 'Yearly Report') {
+      headers = ['ID', 'Date', 'Category', 'Amount', 'Payment Method', 'Notes'];
+      const currentYear = new Date().getFullYear();
+      rows = expenses
+        .filter(e => new Date(e.date).getFullYear() === currentYear)
+        .map(e => [e.id, e.date, e.category, e.amount, e.paymentMethod, e.notes || '']);
+    } else if (reportName === 'Loan Report' || reportName === 'Interest Report') {
+      headers = ['ID', 'Name', 'Type', 'Lender', 'Original Amount', 'Outstanding', 'Rate', 'EMI', 'Start Date', 'End Date'];
+      rows = loans.map(l => [l.id, l.name, l.type, l.lenderName, l.originalAmount, l.currentOutstanding, l.interestRate, l.emi, l.startDate, l.endDate]);
+    } else if (reportName === 'Net Worth Report') {
+      headers = ['Asset/Investment/Account Name', 'Type', 'Value/Balance', 'Classification'];
+      const assetRows = assets.map(a => [a.name, a.type, a.value, 'Asset']);
+      const invRows = investments.map(i => [i.name, i.type, i.currentValue, `Invested: ${i.investedValue}`]);
+      const accRows = accounts.map(a => [a.name, a.type, a.balance, 'Liquid Account']);
+      rows = [...assetRows, ...invRows, ...accRows];
+    } else {
+      headers = ['Data'];
+      rows = [['No data available']];
     }
+
+    // Generate CSV string
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(val => {
+        const strVal = String(val).replace(/"/g, '""');
+        return `"${strVal}"`;
+      }).join(','))
+    ].join('\n');
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Toast notification
+    showToast(`${reportName} downloaded successfully!`, 'success');
   };
 
   // Handle Add Investment Submission
@@ -1849,6 +2051,25 @@ export default function App() {
                         <div className="flex items-center gap-3">
                           <span className="text-xs font-bold text-rose-500">-{formatCurrency(e.amount || 0)}</span>
                           <button
+                            onClick={() => {
+                              setEditingExpense(e);
+                              setSelectedExpenseCategory(e.category);
+                              setNewExpense({
+                                date: e.date,
+                                category: e.category,
+                                amount: e.amount,
+                                paymentMethod: e.paymentMethod,
+                                notes: e.notes,
+                                recurring: e.recurring
+                              });
+                              setShowAddExpenseModal(true);
+                            }}
+                            className="text-slate-400 hover:text-blue-500 transition cursor-pointer"
+                            title="Edit Expense"
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </button>
+                          <button
                             onClick={() => handleDeleteExpense(e.id)}
                             className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
                             title="Delete Expense"
@@ -1876,6 +2097,24 @@ export default function App() {
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="text-xs font-bold text-emerald-500">+{formatCurrency(inc.amount || 0)}</span>
+                            <button
+                              onClick={() => {
+                                setEditingIncome(inc);
+                                setSelectedIncomeCategory(inc.category);
+                                setNewIncome({
+                                  date: inc.date,
+                                  category: inc.category,
+                                  amount: inc.amount,
+                                  notes: inc.notes,
+                                  accountId: inc.accountId
+                                });
+                                setShowAddIncomeModal(true);
+                              }}
+                              className="text-slate-400 hover:text-blue-500 transition cursor-pointer"
+                              title="Edit Income"
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </button>
                             <button
                               onClick={() => handleDeleteIncome(inc.id)}
                               className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
@@ -1994,10 +2233,10 @@ export default function App() {
                   <div key={rep} className="p-4 rounded-xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-800/40 flex flex-col justify-between h-28">
                     <span className="text-xs font-bold">{rep}</span>
                     <button
-                      onClick={() => alert(`Exporting ${rep}...`)}
-                      className="mt-4 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold py-1.5 rounded-lg cursor-pointer"
+                      onClick={() => exportToCSV(rep)}
+                      className="mt-4 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold py-1.5 rounded-lg cursor-pointer transition"
                     >
-                      Export CSV / PDF
+                      Export CSV Data
                     </button>
                   </div>
                 ))}
@@ -2707,8 +2946,8 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-md glass-panel rounded-3xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-slate-800/80 p-6 space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="text-base font-bold">Record New Expense</h3>
-              <button onClick={() => setShowAddExpenseModal(false)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <h3 className="text-base font-bold">{editingExpense ? "Edit Expense Details" : "Record New Expense"}</h3>
+              <button onClick={() => { setShowAddExpenseModal(false); setEditingExpense(null); }} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
             </div>
 
             <form onSubmit={handleCreateExpense} className="space-y-3 text-xs">
@@ -2781,7 +3020,7 @@ export default function App() {
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-lg cursor-pointer"
               >
-                Log Expense
+                {editingExpense ? "Save Changes" : "Log Expense"}
               </button>
             </form>
           </div>
@@ -2793,8 +3032,8 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-md glass-panel rounded-3xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-slate-800/80 p-6 space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="text-base font-bold">Record Income Credit</h3>
-              <button onClick={() => setShowAddIncomeModal(false)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <h3 className="text-base font-bold">{editingIncome ? "Edit Income Details" : "Record Income Credit"}</h3>
+              <button onClick={() => { setShowAddIncomeModal(false); setEditingIncome(null); }} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
             </div>
 
             <form onSubmit={handleCreateIncome} className="space-y-3 text-xs">
@@ -2849,7 +3088,7 @@ export default function App() {
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-lg cursor-pointer"
               >
-                Log Income
+                {editingIncome ? "Save Changes" : "Log Income"}
               </button>
             </form>
           </div>
@@ -2988,6 +3227,37 @@ export default function App() {
         </div>
       )}
 
+      {/* Toast Alert Popups */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce glass-panel p-4 rounded-xl border border-slate-200/50 dark:border-slate-800/80 flex items-center gap-3 shadow-2xl">
+          <div className={`h-2 w-2 rounded-full ${toast.type === 'success' ? 'bg-emerald-500' : toast.type === 'error' ? 'bg-rose-500' : 'bg-blue-500'}`}></div>
+          <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{toast.message}</span>
+        </div>
+      )}
+
+      {/* Modern Custom Confirmation Dialog Overlay */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm glass-panel rounded-2xl p-6 border border-slate-200/50 dark:border-slate-800/80 space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">{confirmDialog.title}</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{confirmDialog.message}</p>
+            <div className="flex gap-2 justify-end text-xs mt-4">
+              <button
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 font-bold transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDialog.onConfirm}
+                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold transition cursor-pointer"
+              >
+                Yes, Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

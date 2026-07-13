@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Headers, Param, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Put, Body, Headers, Param, BadRequestException } from '@nestjs/common';
 import { FinanceService } from './finance.service';
 
 @Controller('api/finance')
@@ -136,5 +136,29 @@ export class FinanceController {
   async deleteInvestment(@Headers('x-user-id') userId: string, @Param('id') id: string) {
     const realId = this.getRealUserId(userId);
     return this.financeService.deleteInvestment(realId, id);
+  }
+
+  @Put('loans/:id')
+  async updateLoan(@Headers('x-user-id') userId: string, @Param('id') id: string, @Body() body: any) {
+    const realId = this.getRealUserId(userId);
+    return this.financeService.updateLoan(realId, id, body);
+  }
+
+  @Put('expenses/:id')
+  async updateExpense(@Headers('x-user-id') userId: string, @Param('id') id: string, @Body() body: any) {
+    const realId = this.getRealUserId(userId);
+    return this.financeService.updateExpense(realId, id, body);
+  }
+
+  @Put('assets/:id')
+  async updateAsset(@Headers('x-user-id') userId: string, @Param('id') id: string, @Body() body: any) {
+    const realId = this.getRealUserId(userId);
+    return this.financeService.updateAsset(realId, id, body);
+  }
+
+  @Put('investments/:id')
+  async updateInvestment(@Headers('x-user-id') userId: string, @Param('id') id: string, @Body() body: any) {
+    const realId = this.getRealUserId(userId);
+    return this.financeService.updateInvestment(realId, id, body);
   }
 }

@@ -233,4 +233,60 @@ export class FinanceService {
       where: { id, userId },
     });
   }
+
+  async updateLoan(userId: string, id: string, data: any) {
+    const { id: _, userId: __, ...cleanData } = data;
+    return this.prisma.loan.update({
+      where: { id, userId },
+      data: {
+        ...cleanData,
+        originalAmount: Number(cleanData.originalAmount),
+        currentOutstanding: Number(cleanData.currentOutstanding),
+        interestRate: Number(cleanData.interestRate),
+        tenureMonths: Number(cleanData.tenureMonths),
+        emi: Number(cleanData.emi),
+        processingFee: Number(cleanData.processingFee || 0),
+        insurance: Number(cleanData.insurance || 0),
+        lateFee: Number(cleanData.lateFee || 0),
+        prepaymentCharges: Number(cleanData.prepaymentCharges || 0),
+        creditLimit: cleanData.creditLimit ? Number(cleanData.creditLimit) : undefined,
+        minDue: cleanData.minDue ? Number(cleanData.minDue) : undefined
+      }
+    });
+  }
+
+  async updateExpense(userId: string, id: string, data: any) {
+    const { id: _, userId: __, ...cleanData } = data;
+    return this.prisma.expense.update({
+      where: { id, userId },
+      data: {
+        ...cleanData,
+        amount: Number(cleanData.amount)
+      }
+    });
+  }
+
+  async updateAsset(userId: string, id: string, data: any) {
+    const { id: _, userId: __, ...cleanData } = data;
+    return this.prisma.asset.update({
+      where: { id, userId },
+      data: {
+        ...cleanData,
+        value: Number(cleanData.value)
+      }
+    });
+  }
+
+  async updateInvestment(userId: string, id: string, data: any) {
+    const { id: _, userId: __, ...cleanData } = data;
+    return this.prisma.investment.update({
+      where: { id, userId },
+      data: {
+        ...cleanData,
+        investedValue: Number(cleanData.investedValue),
+        currentValue: Number(cleanData.currentValue),
+        gainLoss: Number(cleanData.currentValue) - Number(cleanData.investedValue)
+      }
+    });
+  }
 }
