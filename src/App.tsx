@@ -674,8 +674,7 @@ export default function App() {
       id: `acc-${Date.now()}`,
       name: newAccountName,
       type: newAccountType as any,
-      balance: Number(newAccountBalance),
-      userId: currentUser?.token || 'demo'
+      balance: Number(newAccountBalance)
     };
 
     if (currentUser && !currentUser.token.startsWith('demo-')) {
