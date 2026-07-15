@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   LayoutDashboard,
   DollarSign,
@@ -335,15 +335,32 @@ export default function App() {
   });
 
   // Expense & Income Category Selection Helper States
-  const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<string>('Food');
+  const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<string>('');
   const [selectedIncomeCategory, setSelectedIncomeCategory] = useState<string>('Salary');
+
+  // Custom Category States - persisted in localStorage
+  const [customExpenseCategories, setCustomExpenseCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('finance_os_custom_categories');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [showExpenseCategoryPicker, setShowExpenseCategoryPicker] = useState<boolean>(false);
+  const [expenseCategorySearch, setExpenseCategorySearch] = useState<string>('');
+
+  // Custom Asset Type
+  const [customAssetType, setCustomAssetType] = useState<string>('');
+
+  // Mobile More Sheet
+  const [showMoreSheet, setShowMoreSheet] = useState<boolean>(false);
+
+  // Amount input ref for auto-focus after save
+  const amountInputRef = useRef<HTMLInputElement>(null);
 
   // Expense Form State
   const [newExpense, setNewExpense] = useState<Partial<Expense>>({
     date: new Date().toISOString().split('T')[0],
-    category: 'Food',
+    category: '',
     amount: 0,
-    paymentMethod: 'CASH',
+    paymentMethod: 'UPI',
     notes: '',
     recurring: 'NONE'
   });
@@ -432,6 +449,11 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('finance_os_accounts', JSON.stringify(accounts));
   }, [accounts]);
+
+  useEffect(() => {
+    localStorage.setItem('finance_os_custom_categories', JSON.stringify(customExpenseCategories));
+  }, [customExpenseCategories]);
+
 
   // Recalculator: Ensure loan currentOutstandings reflect all standard payments applied to them
   const recalculateSystemMetrics = () => {
