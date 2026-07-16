@@ -69,7 +69,8 @@ import type {
   Alert,
   LoanType,
   InterestType,
-  Priority
+  Priority,
+  Goal
 } from './types/finance';
 import {
   generateAmortizationSchedule,
@@ -98,7 +99,13 @@ export default function App() {
   // Auth state
   const [currentUser, setCurrentUser] = useState<{ name: string; email: string; token: string } | null>(() => {
     const saved = localStorage.getItem('finance_os_user');
-    return saved ? JSON.parse(saved) : null;
+    if (!saved) return null;
+    try {
+      const data = JSON.parse(saved);
+      return data.user ? { ...data.user, token: data.token } : data;
+    } catch {
+      return null;
+    }
   });
   const [authMode, setAuthMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
   const [authForm, setAuthForm] = useState({ name: '', email: '', password: '' });
@@ -273,12 +280,40 @@ export default function App() {
   const [newBudgetCategory, setNewBudgetCategory] = useState<string>('');
   const [newBudgetLimit, setNewBudgetLimit] = useState<number>(0);
 
+  // Goal Tracking States
+  const [goals, setGoals] = useState<Goal[]>(() => {
+    const saved = localStorage.getItem('finance_os_goals');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [showAddGoalModal, setShowAddGoalModal] = useState<boolean>(false);
+  const [newGoal, setNewGoal] = useState<Partial<Goal>>({
+    name: '',
+    targetAmount: 0,
+    currentAmount: 0,
+    type: 'INVESTMENT',
+    targetDurationMonths: 12,
+    targetDate: ''
+  });
+
+  // Search/Filter/Sort for Investments
+  const [investmentSearch, setInvestmentSearch] = useState<string>('');
+  const [investmentFilterType, setInvestmentFilterType] = useState<string>('ALL');
+  const [investmentSortBy, setInvestmentSortBy] = useState<string>('DATE_DESC');
+
+  // Custom Investment Category
+  const [customInvestmentType, setCustomInvestmentType] = useState<string>('');
+
   // Investment & Asset Form State
   const [newInvestment, setNewInvestment] = useState<Partial<Investment>>({
     name: '',
     type: 'MUTUAL_FUND',
     investedValue: 0,
-    currentValue: 0
+    currentValue: 0,
+    date: new Date().toISOString().split('T')[0],
+    isSIP: false,
+    sipAmount: 0,
+    sipDate: 5,
+    notes: ''
   });
 
   const [newAsset, setNewAsset] = useState<Partial<Asset>>({
@@ -455,6 +490,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('finance_os_custom_categories', JSON.stringify(customExpenseCategories));
   }, [customExpenseCategories]);
+
+  useEffect(() => {
+    localStorage.setItem('finance_os_goals', JSON.stringify(goals));
+  }, [goals]);
 
 
   // Recalculator: Ensure loan currentOutstandings reflect all standard payments applied to them
@@ -1129,19 +1168,43 @@ export default function App() {
   // Handle Add Investment Submission
   const handleCreateInvestment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newInvestment.name || !newInvestment.investedValue || !newInvestment.currentValue) return;
+    if (!newInvestment.name || !newInvestment.investedValue) return;
+
+    const finalType = newInvestment.type === 'OTHERS' && customInvestmentType.trim() !== ''
+      ? customInvestmentType.trim()
+      : newInvestment.type;
+
+    const investedVal = Number(newInvestment.investedValue);
+    const currentVal = newInvestment.currentValue ? Number(newInvestment.currentValue) : investedVal;
 
     const investmentToAdd: Investment = {
       id: `inv-${Date.now()}`,
       name: newInvestment.name,
-      type: newInvestment.type as any,
-      investedValue: Number(newInvestment.investedValue),
-      currentValue: Number(newInvestment.currentValue)
+      type: finalType as any,
+      investedValue: investedVal,
+      currentValue: currentVal,
+      date: newInvestment.date || new Date().toISOString().split('T')[0],
+      isSIP: !!newInvestment.isSIP,
+      sipAmount: newInvestment.isSIP ? Number(newInvestment.sipAmount) : 0,
+      sipDate: newInvestment.isSIP ? Number(newInvestment.sipDate) : 5,
+      notes: newInvestment.notes || ''
     };
 
     setInvestments([...investments, investmentToAdd]);
     setShowAddInvestmentModal(false);
-    setNewInvestment({ name: '', type: 'MUTUAL_FUND', investedValue: 0, currentValue: 0 });
+    setNewInvestment({
+      name: '',
+      type: 'MUTUAL_FUND',
+      investedValue: 0,
+      currentValue: 0,
+      date: new Date().toISOString().split('T')[0],
+      isSIP: false,
+      sipAmount: 0,
+      sipDate: 5,
+      notes: ''
+    });
+    setCustomInvestmentType('');
+    showToast("Investment added successfully!", "success");
   };
 
   // Handle Add Asset Submission
@@ -1165,6 +1228,48 @@ export default function App() {
     setNewAsset({ name: '', type: 'HOUSE', value: 0 });
     setCustomAssetType('');
   };
+
+  // Handle Goal Creation
+  const handleCreateGoal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGoal.name || !newGoal.targetAmount) return;
+
+    const goalToAdd: Goal = {
+      id: `goal-${Date.now()}`,
+      name: newGoal.name,
+      targetAmount: Number(newGoal.targetAmount),
+      currentAmount: Number(newGoal.currentAmount || 0),
+      type: newGoal.type as 'EXPENSE' | 'INVESTMENT',
+      targetDurationMonths: newGoal.targetDurationMonths ? Number(newGoal.targetDurationMonths) : undefined,
+      targetDate: newGoal.targetDate || undefined
+    };
+
+    setGoals([...goals, goalToAdd]);
+    setShowAddGoalModal(false);
+    setNewGoal({
+      name: '',
+      targetAmount: 0,
+      currentAmount: 0,
+      type: 'INVESTMENT',
+      targetDurationMonths: 12,
+      targetDate: ''
+    });
+    showToast("Financial Goal created successfully!", "success");
+  };
+
+  const handleDeleteGoal = (id: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Delete Goal",
+      message: "Are you sure you want to remove this financial goal?",
+      onConfirm: () => {
+        setGoals(goals.filter(g => g.id !== id));
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        showToast("Goal removed.");
+      }
+    });
+  };
+
 
   // Calculations for dashboard
   const activeLoans = loans.filter(l => l.status === 'ACTIVE');
@@ -2127,6 +2232,60 @@ export default function App() {
                 );
               })()}
 
+              {/* SAVINGS & EXPENSE GOALS SECTION */}
+              <div className="glass-card rounded-2xl p-5 space-y-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">Expense Savings Goals</h3>
+                    <p className="text-[10px] text-slate-400">Set limits or savings caps to control spending habits</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setNewGoal({ name: '', targetAmount: 0, currentAmount: 0, type: 'EXPENSE', targetDurationMonths: 12, targetDate: '' });
+                      setShowAddGoalModal(true);
+                    }}
+                    className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/50 px-3.5 py-1.5 rounded-xl font-bold cursor-pointer transition"
+                  >
+                    + Create Expense Goal
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {goals.filter(g => g.type === 'EXPENSE').length > 0 ? (
+                    goals.filter(g => g.type === 'EXPENSE').map(goal => {
+                      const pct = Math.min(100, (goal.currentAmount / goal.targetAmount) * 100);
+                      return (
+                        <div key={goal.id} className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 space-y-2">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-slate-700 dark:text-slate-350">{goal.name}</span>
+                            <button
+                              onClick={() => handleDeleteGoal(goal.id)}
+                              className="text-slate-400 hover:text-rose-500"
+                              title="Delete Goal"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          
+                          <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div
+                              className="bg-gradient-to-r from-emerald-500 to-green-400 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[9px] text-slate-450 font-semibold uppercase">
+                            <span>{pct.toFixed(0)}% Saved ({formatCurrency(goal.currentAmount)})</span>
+                            <span>Target: {formatCurrency(goal.targetAmount)}</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="col-span-2 text-center py-6 text-xs text-slate-400">No active expense savings goals yet. Create one above!</div>
+                  )}
+                </div>
+              </div>
+
               {/* BUDGET HEALTH PROGRESS INDICATORS */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {budgets.map(b => {
@@ -2186,7 +2345,7 @@ export default function App() {
                 <div className="glass-card rounded-2xl p-5 space-y-4">
                   <h3 className="text-sm font-bold">Transaction History (Expenses)</h3>
                   <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-                    {expenses.map((e, idx) => (
+                    {[...expenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((e, idx) => (
                       <div key={e.id || idx} className="p-3 rounded-xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
                         <div>
                           <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{e.category}</span>
@@ -2233,7 +2392,7 @@ export default function App() {
                     {incomes.length === 0 ? (
                       <p className="text-xs text-slate-400 py-4 text-center">No income credits logged yet.</p>
                     ) : (
-                      incomes.map((inc, idx) => (
+                      [...incomes].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((inc, idx) => (
                         <div key={inc.id || idx} className="p-3 rounded-xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
                           <div>
                             <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{inc.category}</span>
@@ -2278,91 +2437,427 @@ export default function App() {
           )}
 
           {/* TAB 5: INVESTMENTS & ASSETS */}
-          {activeTab === 'investments' && (
-            <div className="space-y-6">
-              
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-xl font-bold tracking-tight">Investments & Assets</h2>
-                  <p className="text-xs text-slate-400">Add assets or funds. FinanceOS automatically calculates current totals and net worth.</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowAddInvestmentModal(true)}
-                    className="glow-btn bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1 cursor-pointer"
-                  >
-                    + Add Investment
-                  </button>
-                  <button
-                    onClick={() => setShowAddAssetModal(true)}
-                    className="glow-btn bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1 cursor-pointer"
-                  >
-                    + Add Asset
-                  </button>
-                </div>
-              </div>
+          {activeTab === 'investments' && (() => {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const curMonth = new Date().getMonth();
+            const curYear = new Date().getFullYear();
 
-              {/* INVESTMENTS TABLE */}
-              <div className="glass-card rounded-2xl p-5 space-y-4">
-                <h3 className="text-sm font-bold">Investment Ledger</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {investments.map(inv => {
-                    const gain = inv.currentValue - inv.investedValue;
-                    const pct = (gain / inv.investedValue) * 100;
-                    return (
-                      <div key={inv.id} className="p-4 rounded-2xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
+            // Aggregations
+            const totalInvested = investments.reduce((sum, inv) => sum + Number(inv.investedValue || 0), 0);
+            const totalCurrent = investments.reduce((sum, inv) => sum + Number(inv.currentValue || 0), 0);
+            const portfolioGain = totalCurrent - totalInvested;
+            const portfolioGainPct = totalInvested > 0 ? (portfolioGain / totalInvested) * 100 : 0;
+
+            const dailyInvestment = investments
+              .filter(inv => inv.date === todayStr)
+              .reduce((sum, inv) => sum + Number(inv.investedValue || 0), 0);
+
+            const monthlyInvestment = investments
+              .filter(inv => {
+                if (!inv.date) return false;
+                const d = new Date(inv.date);
+                return d.getMonth() === curMonth && d.getFullYear() === curYear;
+              })
+              .reduce((sum, inv) => sum + Number(inv.investedValue || 0), 0);
+
+            const yearlyInvestment = investments
+              .filter(inv => {
+                if (!inv.date) return false;
+                const d = new Date(inv.date);
+                return d.getFullYear() === curYear;
+              })
+              .reduce((sum, inv) => sum + Number(inv.investedValue || 0), 0);
+
+            // Asset Allocation Data
+            const allocationMap = investments.reduce((acc, inv) => {
+              const t = inv.type || 'OTHERS';
+              acc[t] = (acc[t] || 0) + Number(inv.currentValue || 0);
+              return acc;
+            }, {} as Record<string, number>);
+
+            const allocationData = Object.entries(allocationMap).map(([name, value]) => ({
+              name: name.replace('_', ' '),
+              value
+            }));
+
+            const COLORS = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#3B82F6', '#06B6D4', '#14B8A6', '#64748B'];
+
+            // Filter & Sort Investments
+            const sortedAndFilteredInvestments = [...investments]
+              .filter(inv => {
+                const matchesSearch = inv.name.toLowerCase().includes(investmentSearch.toLowerCase()) ||
+                  (inv.notes && inv.notes.toLowerCase().includes(investmentSearch.toLowerCase()));
+                const matchesFilter = investmentFilterType === 'ALL' || inv.type === investmentFilterType;
+                return matchesSearch && matchesFilter;
+              })
+              .sort((a, b) => {
+                if (investmentSortBy === 'DATE_DESC') {
+                  return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
+                }
+                if (investmentSortBy === 'DATE_ASC') {
+                  return new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime();
+                }
+                if (investmentSortBy === 'AMOUNT_DESC') {
+                  return Number(b.investedValue) - Number(a.investedValue);
+                }
+                if (investmentSortBy === 'NAME') {
+                  return a.name.localeCompare(b.name);
+                }
+                return 0;
+              });
+
+            // Filter goals
+            const investmentGoals = goals.filter(g => g.type === 'INVESTMENT');
+
+            // SIP alerts
+            const sipReminders = investments.filter(inv => inv.isSIP);
+
+            // Export to CSV helper
+            const exportInvestmentsToCSV = () => {
+              const headers = ['ID', 'Name', 'Type', 'Invested Principal', 'Current Valuation', 'Date Added', 'Is SIP', 'SIP Amount', 'SIP Date', 'Notes'];
+              const rows = investments.map(inv => [
+                inv.id,
+                inv.name,
+                inv.type,
+                inv.investedValue,
+                inv.currentValue,
+                inv.date || '',
+                inv.isSIP ? 'Yes' : 'No',
+                inv.sipAmount || 0,
+                inv.sipDate || '',
+                inv.notes || ''
+              ]);
+              const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+              ].join('\n');
+
+              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.setAttribute('href', url);
+              link.setAttribute('download', `FinanceOS_Investments_Export_${new Date().toISOString().split('T')[0]}.csv`);
+              link.style.visibility = 'hidden';
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              showToast("Investments database exported!");
+            };
+
+            return (
+              <div className="space-y-6">
+                
+                {/* Header Actions */}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-xl font-bold tracking-tight">Investments & Assets</h2>
+                    <p className="text-xs text-slate-400">Track mutual funds, stocks, and assets. Portfolio growth calculates instantly.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowAddInvestmentModal(true)}
+                      className="glow-btn bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl flex items-center gap-1 cursor-pointer transition"
+                    >
+                      + Log Investment
+                    </button>
+                    <button
+                      onClick={() => setShowAddAssetModal(true)}
+                      className="glow-btn bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl flex items-center gap-1 cursor-pointer transition"
+                    >
+                      + Log Asset
+                    </button>
+                  </div>
+                </div>
+
+                {/* portfolio Overview Metric Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="glass-card rounded-2xl p-4 space-y-1">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Portfolio Valuation</span>
+                    <span className="text-lg font-extrabold block text-slate-800 dark:text-white">{formatCurrency(totalCurrent)}</span>
+                    <span className={`text-[10px] font-bold flex items-center gap-0.5 ${portfolioGain >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {portfolioGain >= 0 ? '▲' : '▼'} {portfolioGainPct.toFixed(2)}% ({formatCurrency(portfolioGain)})
+                    </span>
+                  </div>
+
+                  <div className="glass-card rounded-2xl p-4 space-y-1">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Total Capital Invested</span>
+                    <span className="text-lg font-extrabold block text-slate-800 dark:text-white">{formatCurrency(totalInvested)}</span>
+                    <span className="text-[9px] text-slate-400">All-time principal</span>
+                  </div>
+
+                  <div className="glass-card rounded-2xl p-4 space-y-1">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Monthly Investment</span>
+                    <span className="text-lg font-extrabold block text-slate-800 dark:text-white">{formatCurrency(monthlyInvestment)}</span>
+                    <span className="text-[9px] text-slate-400">This Month</span>
+                  </div>
+
+                  <div className="glass-card rounded-2xl p-4 space-y-1">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Yearly Investment</span>
+                    <span className="text-lg font-extrabold block text-slate-800 dark:text-white">{formatCurrency(yearlyInvestment)}</span>
+                    <span className="text-[9px] text-slate-400">This Year</span>
+                  </div>
+                </div>
+
+                {/* Charts and Allocation Split */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Allocation Chart */}
+                  <div className="glass-card rounded-2xl p-5 md:col-span-2 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">Asset Allocation</h3>
+                      <span className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 px-2 py-0.5 rounded font-bold">{allocationData.length} Asset Classes</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                      <div className="h-48">
+                        {allocationData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={allocationData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={45}
+                                outerRadius={70}
+                                paddingAngle={3}
+                                dataKey="value"
+                              >
+                                {allocationData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="h-full flex items-center justify-center text-xs text-slate-400">No investments logged yet</div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                        {allocationData.map((item, idx) => (
+                          <div key={item.name} className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                              <span className="font-semibold text-slate-700 dark:text-slate-300 truncate">{item.name}</span>
+                            </div>
+                            <span className="font-bold text-slate-900 dark:text-white shrink-0">{formatCurrency(item.value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Goal Tracking Card */}
+                  <div className="glass-card rounded-2xl p-5 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">Investment Goals</h3>
+                      <button
+                        onClick={() => {
+                          setNewGoal(prev => ({ ...prev, type: 'INVESTMENT' }));
+                          setShowAddGoalModal(true);
+                        }}
+                        className="text-[10px] text-blue-500 font-bold hover:underline cursor-pointer"
+                      >
+                        + Create Goal
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 max-h-[190px] overflow-y-auto pr-1">
+                      {investmentGoals.length > 0 ? (
+                        investmentGoals.map(goal => {
+                          const pct = Math.min(100, (totalCurrent / goal.targetAmount) * 100);
+                          return (
+                            <div key={goal.id} className="space-y-1.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-slate-700 dark:text-slate-350">{goal.name}</span>
+                                <button
+                                  onClick={() => handleDeleteGoal(goal.id)}
+                                  className="text-slate-400 hover:text-rose-500"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              
+                              <div className="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                                <div
+                                  className="bg-gradient-to-r from-blue-600 to-indigo-500 h-full rounded-full transition-all duration-500"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+
+                              <div className="flex justify-between text-[9px] text-slate-400 font-semibold uppercase">
+                                <span>{pct.toFixed(0)}% Completed</span>
+                                <span>Target: {formatCurrency(goal.targetAmount)}</span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="h-32 flex flex-col items-center justify-center text-xs text-slate-400 gap-1.5">
+                          <span>No goals set.</span>
+                          <button
+                            onClick={() => {
+                              setNewGoal(prev => ({ ...prev, type: 'INVESTMENT' }));
+                              setShowAddGoalModal(true);
+                            }}
+                            className="bg-blue-50 dark:bg-blue-900/30 text-blue-500 px-3.5 py-1.5 rounded-xl font-bold hover:brightness-95 cursor-pointer text-[10px]"
+                          >
+                            Set a Goal Now
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* SIP Schedule Reminder alerts */}
+                {sipReminders.length > 0 && (
+                  <div className="p-4 rounded-2xl bg-amber-500/10 border-l-4 border-amber-500 text-slate-800 dark:text-slate-200 space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                      🔔 Upcoming SIP Reminders
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      {sipReminders.map(sip => (
+                        <div key={sip.id} className="p-2.5 bg-white/40 dark:bg-slate-900/40 rounded-xl flex justify-between items-center">
+                          <div>
+                            <span className="font-semibold block">{sip.name}</span>
+                            <span className="text-[10px] text-slate-400">Monthly SIP due: Day {sip.sipDate}</span>
+                          </div>
+                          <span className="font-bold text-amber-600 dark:text-amber-400">{formatCurrency(sip.sipAmount || 0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Ledger Listing filters and sorting options */}
+                <div className="glass-card rounded-2xl p-5 space-y-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <h3 className="text-sm font-bold">Investment Ledger</h3>
+                    
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Search ledger..."
+                        value={investmentSearch}
+                        onChange={(e) => setInvestmentSearch(e.target.value)}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs focus:ring-1 focus:ring-blue-500 outline-none w-full md:w-40"
+                      />
+
+                      <select
+                        value={investmentFilterType}
+                        onChange={(e) => setInvestmentFilterType(e.target.value)}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs outline-none"
+                      >
+                        <option value="ALL">All Types</option>
+                        <option value="MUTUAL_FUND">Mutual Fund</option>
+                        <option value="STOCK">Stock / Equity</option>
+                        <option value="GOLD">Gold</option>
+                        <option value="PPF">PPF</option>
+                        <option value="EPF">EPF</option>
+                        <option value="FD">Fixed Deposit</option>
+                        <option value="RD">Recurring Deposit</option>
+                        <option value="CRYPTO">Cryptocurrency</option>
+                        <option value="LAND">Land</option>
+                        <option value="HOUSE">House</option>
+                        <option value="BOND">Bond</option>
+                      </select>
+
+                      <select
+                        value={investmentSortBy}
+                        onChange={(e) => setInvestmentSortBy(e.target.value)}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs outline-none"
+                      >
+                        <option value="DATE_DESC">Date (Newest)</option>
+                        <option value="DATE_ASC">Date (Oldest)</option>
+                        <option value="AMOUNT_DESC">Principal (Highest)</option>
+                        <option value="NAME">Name (A-Z)</option>
+                      </select>
+
+                      <button
+                        onClick={exportInvestmentsToCSV}
+                        className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs px-3 py-1.5 rounded-lg cursor-pointer transition font-bold"
+                      >
+                        📥 Export Ledger CSV
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {sortedAndFilteredInvestments.length > 0 ? (
+                      sortedAndFilteredInvestments.map(inv => {
+                        const gain = inv.currentValue - inv.investedValue;
+                        const pct = inv.investedValue > 0 ? (gain / inv.investedValue) * 100 : 0;
+                        return (
+                          <div key={inv.id} className="p-4 rounded-2xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center relative overflow-hidden">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-slate-850 dark:text-slate-200">{inv.name}</span>
+                                {inv.isSIP && (
+                                  <span className="text-[8px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-extrabold px-1.5 py-0.5 rounded">SIP</span>
+                                )}
+                              </div>
+                              <div className="text-[9px] text-slate-400 space-x-2">
+                                <span>{inv.type.replace('_', ' ')}</span>
+                                <span>•</span>
+                                <span>{inv.date || 'No Date'}</span>
+                              </div>
+                              {inv.notes && (
+                                <p className="text-[9px] text-slate-450 italic max-w-[200px] truncate">"{inv.notes}"</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="text-right">
+                                <span className="text-xs font-bold block">{formatCurrency(inv.currentValue || 0)}</span>
+                                <span className={`text-[10px] font-bold ${gain >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                  {gain >= 0 ? '+' : ''}{pct.toFixed(1)}% ({formatCurrency(gain)})
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteInvestment(inv.id)}
+                                className="text-slate-400 hover:text-rose-500 transition cursor-pointer p-1"
+                                title="Delete Investment"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="col-span-2 text-center py-8 text-xs text-slate-450">No matches found for search or filters.</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* PHYSICAL ASSETS DIRECTORY */}
+                <div className="glass-card rounded-2xl p-5 space-y-4">
+                  <h3 className="text-sm font-bold">Physical Asset Directory</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {assets.map(ast => (
+                      <div key={ast.id} className="p-4 rounded-2xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
                         <div>
-                          <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{inv.name}</span>
-                          <span className="text-[9px] text-slate-400">{inv.type}</span>
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{ast.name}</span>
+                          <span className="text-[9px] text-slate-400">{ast.type}</span>
                         </div>
                         <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <span className="text-xs font-bold block">{formatCurrency(inv.currentValue || 0)}</span>
-                            <span className={`text-[10px] font-bold ${gain >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                              {gain >= 0 ? '+' : ''}{pct.toFixed(1)}% ({formatCurrency(gain)})
-                            </span>
-                          </div>
+                          <span className="text-xs font-bold text-emerald-500">{formatCurrency(ast.value)}</span>
                           <button
-                            onClick={() => handleDeleteInvestment(inv.id)}
+                            onClick={() => handleDeleteAsset(ast.id)}
                             className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
-                            title="Delete Investment"
+                            title="Delete Asset"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* ASSETS LIST */}
-              <div className="glass-card rounded-2xl p-5 space-y-4">
-                <h3 className="text-sm font-bold">Asset Directory</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {assets.map(ast => (
-                    <div key={ast.id} className="p-4 rounded-2xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
-                      <div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{ast.name}</span>
-                        <span className="text-[9px] text-slate-400">{ast.type}</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold text-emerald-500">{formatCurrency(ast.value)}</span>
-                        <button
-                          onClick={() => handleDeleteAsset(ast.id)}
-                          className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
-                          title="Delete Asset"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
-
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB 6: DETAILED REPORTS */}
           {activeTab === 'reports' && (
@@ -3426,10 +3921,10 @@ export default function App() {
       {/* DIALOG MODAL: ADD INVESTMENT */}
       {showAddInvestmentModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md glass-panel rounded-3xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-slate-800/80 p-6 space-y-4">
+          <div className="w-full max-w-md glass-panel rounded-3xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-slate-800/80 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
               <h3 className="text-base font-bold">Log New Investment Asset</h3>
-              <button onClick={() => setShowAddInvestmentModal(false)} className="text-slate-400 hover:text-white font-bold">✕</button>
+              <button onClick={() => setShowAddInvestmentModal(false)} className="text-slate-400 hover:text-rose-500 font-bold p-1"><X className="h-5 w-5" /></button>
             </div>
 
             <form onSubmit={handleCreateInvestment} className="space-y-3 text-xs">
@@ -3454,10 +3949,17 @@ export default function App() {
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none"
                   >
                     <option value="MUTUAL_FUND">Mutual Fund</option>
-                    <option value="STOCK">Stock Equity</option>
-                    <option value="CRYPTO">Cryptocurrency</option>
+                    <option value="STOCK">Stock / Equity</option>
+                    <option value="GOLD">Gold</option>
                     <option value="PPF">Provident Fund (PPF)</option>
+                    <option value="EPF">EPF</option>
+                    <option value="FD">Fixed Deposit (FD)</option>
+                    <option value="RD">Recurring Deposit (RD)</option>
+                    <option value="CRYPTO">Cryptocurrency</option>
+                    <option value="LAND">Land</option>
+                    <option value="HOUSE">House</option>
                     <option value="BOND">Treasury Bond</option>
+                    <option value="OTHERS">Other (Custom Option)</option>
                   </select>
                 </div>
                 <div>
@@ -3472,22 +3974,98 @@ export default function App() {
                 </div>
               </div>
 
+              {newInvestment.type === 'OTHERS' && (
+                <div>
+                  <label className="text-slate-400 block mb-1">Custom Investment Type</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Gold ETF, Smallcase, Index Fund"
+                    value={customInvestmentType}
+                    onChange={(e) => setCustomInvestmentType(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-400 block mb-1">Current Value (Optional)</label>
+                  <input
+                    type="number"
+                    placeholder="Same as principal if blank"
+                    value={newInvestment.currentValue || ''}
+                    onChange={(e) => setNewInvestment({ ...newInvestment, currentValue: e.target.value ? Number(e.target.value) : undefined })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 block mb-1">Investment Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={newInvestment.date || ''}
+                    onChange={(e) => setNewInvestment({ ...newInvestment, date: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl space-y-2 border border-slate-200/50 dark:border-slate-800/80">
+                <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={!!newInvestment.isSIP}
+                    onChange={(e) => setNewInvestment({ ...newInvestment, isSIP: e.target.checked })}
+                    className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                  />
+                  <span>This is a Systematic Investment Plan (SIP)</span>
+                </label>
+
+                {newInvestment.isSIP && (
+                  <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-200/30 dark:border-slate-800/50">
+                    <div>
+                      <label className="text-[10px] text-slate-450 block mb-0.5">Monthly SIP Amount</label>
+                      <input
+                        type="number"
+                        placeholder="e.g. 5000"
+                        value={newInvestment.sipAmount || ''}
+                        onChange={(e) => setNewInvestment({ ...newInvestment, sipAmount: Number(e.target.value) })}
+                        className="w-full px-2 py-1.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-200 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-450 block mb-0.5">SIP Day of Month</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        placeholder="5"
+                        value={newInvestment.sipDate || ''}
+                        onChange={(e) => setNewInvestment({ ...newInvestment, sipDate: Number(e.target.value) })}
+                        className="w-full px-2 py-1.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-200 outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div>
-                <label className="text-slate-400 block mb-1">Current Evaluation Value</label>
+                <label className="text-slate-400 block mb-1">Notes / Remarks</label>
                 <input
-                  type="number"
-                  required
-                  value={newInvestment.currentValue || ''}
-                  onChange={(e) => setNewInvestment({ ...newInvestment, currentValue: Number(e.target.value) })}
+                  type="text"
+                  placeholder="e.g. Tax saving section 80C"
+                  value={newInvestment.notes || ''}
+                  onChange={(e) => setNewInvestment({ ...newInvestment, notes: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-lg cursor-pointer"
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl cursor-pointer transition text-xs mt-2"
               >
-                Log Investment
+                Log Investment Asset
               </button>
             </form>
           </div>
@@ -3578,6 +4156,97 @@ export default function App() {
           </div>
         </div>
       )}
+      {/* DIALOG MODAL: ADD GOAL */}
+      {showAddGoalModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md glass-panel rounded-3xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-slate-800/80 p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-bold">Create Financial Goal</h3>
+              <button onClick={() => setShowAddGoalModal(false)} className="text-slate-400 hover:text-rose-500 font-bold p-1"><X className="h-5 w-5" /></button>
+            </div>
+
+            <form onSubmit={handleCreateGoal} className="space-y-3 text-xs">
+              <div>
+                <label className="text-slate-400 block mb-1">Goal Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Retirement Fund, Buy a Home, Emergency Cushion"
+                  value={newGoal.name || ''}
+                  onChange={(e) => setNewGoal({ ...newGoal, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-400 block mb-1">Target Amount ({currency === 'INR' ? '₹' : '$'})</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="e.g. 500000"
+                    value={newGoal.targetAmount || ''}
+                    onChange={(e) => setNewGoal({ ...newGoal, targetAmount: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 block mb-1">Initial / Current Savings</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 20000"
+                    value={newGoal.currentAmount || ''}
+                    onChange={(e) => setNewGoal({ ...newGoal, currentAmount: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-400 block mb-1">Goal Classification</label>
+                  <select
+                    value={newGoal.type}
+                    onChange={(e) => setNewGoal({ ...newGoal, type: e.target.value as any })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none"
+                  >
+                    <option value="INVESTMENT">Investment Target</option>
+                    <option value="EXPENSE">Expense Limit / Cap</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-slate-400 block mb-1">Target Duration (Months)</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 24"
+                    value={newGoal.targetDurationMonths || ''}
+                    onChange={(e) => setNewGoal({ ...newGoal, targetDurationMonths: e.target.value ? Number(e.target.value) : undefined })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-400 block mb-1">Or Specific Target Date (Optional)</label>
+                <input
+                  type="date"
+                  value={newGoal.targetDate || ''}
+                  onChange={(e) => setNewGoal({ ...newGoal, targetDate: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl cursor-pointer transition text-xs mt-2"
+              >
+                Establish Financial Goal
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
 
       {/* Toast Alert Popups */}
       {toast && (

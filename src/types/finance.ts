@@ -96,9 +96,24 @@ export interface Budget {
 export interface Investment {
   id: string;
   name: string;
-  type: 'MUTUAL_FUND' | 'STOCK' | 'GOLD' | 'PPF' | 'EPF' | 'FD' | 'RD' | 'CRYPTO' | 'LAND' | 'HOUSE';
+  type: 'MUTUAL_FUND' | 'STOCK' | 'GOLD' | 'PPF' | 'EPF' | 'FD' | 'RD' | 'CRYPTO' | 'LAND' | 'HOUSE' | 'BOND' | 'OTHERS' | string;
   investedValue: number;
   currentValue: number;
+  date?: string;
+  isSIP?: boolean;
+  sipAmount?: number;
+  sipDate?: number; // Day of month (1-31)
+  notes?: string;
+}
+
+export interface Goal {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  type: 'EXPENSE' | 'INVESTMENT';
+  targetDurationMonths?: number;
+  targetDate?: string;
 }
 
 export interface Asset {
