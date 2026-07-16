@@ -32,7 +32,9 @@ import {
   MapPin,
   Clock,
   Sparkles,
-  BookOpen
+  BookOpen,
+  Menu,
+  LogOut
 } from 'lucide-react';
 import {
   AreaChart,
@@ -658,6 +660,17 @@ export default function App() {
     const finalCategory = selectedExpenseCategory || 'General';
     if (!newExpense.amount || !finalCategory) return;
 
+    // Save new category if it doesn't exist in known list
+    const allKnownCategories = [
+      'Food', 'Groceries', 'Utilities', 'Medical', 'Petrol', 'Shopping',
+      'Rent', 'Fruits', 'Veggies', 'Transport', 'Entertainment', 'Education',
+      'Clothing', 'Personal Care', 'Insurance', 'Travel', 'EMI',
+      ...customExpenseCategories
+    ];
+    if (finalCategory !== 'General' && !allKnownCategories.includes(finalCategory)) {
+      setCustomExpenseCategories(prev => [...prev, finalCategory]);
+    }
+
     if (editingExpense) {
       const updatedExpense = {
         ...editingExpense,
@@ -696,7 +709,7 @@ export default function App() {
 
       setEditingExpense(null);
       setShowAddExpenseModal(false);
-      setSelectedExpenseCategory('Food');
+      setSelectedExpenseCategory('');
       return;
     }
 
@@ -733,14 +746,32 @@ export default function App() {
       })
       .then(res => res.json())
       .then(savedExpense => {
-        setExpenses([...expenses, savedExpense]);
+        setExpenses(prev => [...prev, savedExpense]);
       })
       .catch(err => console.error(err));
     } else {
-      setExpenses([...expenses, expenseToAdd]);
+      setExpenses(prev => [...prev, expenseToAdd]);
     }
-    setShowAddExpenseModal(false);
-    setSelectedExpenseCategory('Food');
+
+    // Show success toast
+    showToast(`✅ ${finalCategory} - ${new Intl.NumberFormat('en-IN').format(Number(newExpense.amount))} saved!`);
+
+    // Clear form but keep modal open for quick next entry
+    setSelectedExpenseCategory('');
+    setNewExpense({
+      date: new Date().toISOString().split('T')[0],
+      category: '',
+      amount: 0,
+      paymentMethod: newExpense.paymentMethod || 'UPI', // keep last used payment method
+      notes: '',
+      recurring: 'NONE',
+      accountId: newExpense.accountId // keep last selected account
+    });
+
+    // Auto-focus the amount input for next entry
+    setTimeout(() => {
+      amountInputRef.current?.focus();
+    }, 80);
   };
 
   // Handle Add Income Submission
@@ -1118,16 +1149,21 @@ export default function App() {
     e.preventDefault();
     if (!newAsset.name || !newAsset.value) return;
 
+    const finalType = newAsset.type === 'OTHERS' && customAssetType.trim() !== '' 
+      ? customAssetType.trim() 
+      : newAsset.type;
+
     const assetToAdd: Asset = {
       id: `ast-${Date.now()}`,
       name: newAsset.name,
-      type: newAsset.type as any,
+      type: finalType as any,
       value: Number(newAsset.value)
     };
 
     setAssets([...assets, assetToAdd]);
     setShowAddAssetModal(false);
     setNewAsset({ name: '', type: 'HOUSE', value: 0 });
+    setCustomAssetType('');
   };
 
   // Calculations for dashboard
@@ -1357,7 +1393,7 @@ export default function App() {
       <div className="flex flex-col lg:flex-row min-h-[calc(100vh-73px)]">
         
         {/* SIDE NAV */}
-        <aside className="w-full lg:w-64 bg-white/70 dark:bg-[#0e1017] p-6 border-r border-slate-200/40 dark:border-slate-900/60 flex flex-col justify-between">
+        <aside className="hidden lg:flex w-64 bg-white/70 dark:bg-[#0e1017] p-6 border-r border-slate-200/40 dark:border-slate-900/60 flex-col justify-between">
           <div className="space-y-6">
             <div className="space-y-1">
               <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase px-3">Main Panel</h3>
@@ -1485,7 +1521,7 @@ export default function App() {
         </aside>
 
         {/* WORKSPACE VIEWPORT */}
-        <main id="main-content-area" className="flex-1 p-6 lg:p-8 overflow-x-hidden space-y-6">
+        <main id="main-content-area" className="flex-1 p-6 lg:p-8 overflow-x-hidden space-y-6 mobile-content-padding">
           
           {/* TAB 1: DASHBOARD */}
           {activeTab === 'dashboard' && (
@@ -3050,87 +3086,224 @@ export default function App() {
       )}
 
       {/* DIALOG MODAL: ADD EXPENSE */}
+      {/* DIALOG MODAL: ADD EXPENSE */}
       {showAddExpenseModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md glass-panel rounded-3xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-slate-800/80 p-6 space-y-4">
-            <div className="flex justify-between items-center">
+        <div className="mobile-modal-sheet">
+          <div className="mobile-modal-content">
+            <div className="mobile-modal-header">
               <h3 className="text-base font-bold">{editingExpense ? "Edit Expense Details" : "Record New Expense"}</h3>
-              <button onClick={() => { setShowAddExpenseModal(false); setEditingExpense(null); }} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <button onClick={() => { setShowAddExpenseModal(false); setEditingExpense(null); }} className="text-slate-400 hover:text-rose-500 font-bold p-1"><X className="h-5 w-5" /></button>
             </div>
 
-            <form onSubmit={handleCreateExpense} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+            <div className="mobile-modal-body space-y-4">
+              <form onSubmit={handleCreateExpense} className="space-y-4">
+                
+                {/* Amount input: large touch target, focused first */}
                 <div>
-                  <label className="text-slate-400 block mb-1">Category</label>
+                  <label className="form-label">Amount ({currency})</label>
                   <input
-                    type="text"
-                    required
-                    list="expense-categories"
-                    placeholder="Type or select category..."
-                    value={selectedExpenseCategory}
-                    onChange={(e) => setSelectedExpenseCategory(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                  <datalist id="expense-categories">
-                    <option value="Food" />
-                    <option value="Utilities" />
-                    <option value="Medical" />
-                    <option value="Fruits" />
-                    <option value="Veggies" />
-                    <option value="Groceries" />
-                    <option value="Petrol" />
-                    <option value="Shopping" />
-                    <option value="Rent" />
-                  </datalist>
-                </div>
-                <div>
-                  <label className="text-slate-400 block mb-1">Amount (${currency})</label>
-                  <input
+                    ref={amountInputRef}
                     type="number"
                     required
+                    pattern="[0-9]*"
+                    inputMode="decimal"
+                    placeholder="0.00"
                     value={newExpense.amount || ''}
                     onChange={(e) => setNewExpense({ ...newExpense, amount: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="touch-input text-2xl font-bold tracking-tight bg-slate-100/50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white"
+                    autoFocus
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
+                {/* Searchable / Selectable Category Selector */}
                 <div>
-                  <label className="text-slate-400 block mb-1">Payment Method</label>
-                  <select
-                    value={newExpense.paymentMethod}
-                    onChange={(e) => setNewExpense({ ...newExpense, paymentMethod: e.target.value as any })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none"
+                  <label className="form-label">Category</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpenseCategorySearch('');
+                      setShowExpenseCategoryPicker(true);
+                    }}
+                    className="touch-input text-left bg-slate-100/50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white flex justify-between items-center cursor-pointer"
                   >
-                    <option value="CASH">Cash</option>
-                    <option value="UPI">UPI</option>
-                    <option value="CREDIT_CARD">Credit Card</option>
-                    <option value="DEBIT_CARD">Debit Card</option>
-                  </select>
+                    <span className="font-semibold">
+                      {selectedExpenseCategory || <span className="text-slate-400 font-normal">Select category...</span>}
+                    </span>
+                    <span className="text-slate-400">▼</span>
+                  </button>
                 </div>
+
+                {/* Sub-category & Date */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="form-label">Sub-Category</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Dinner, Uber"
+                      value={newExpense.subCategory || ''}
+                      onChange={(e) => setNewExpense({ ...newExpense, subCategory: e.target.value })}
+                      className="form-field"
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={newExpense.date || ''}
+                      onChange={(e) => setNewExpense({ ...newExpense, date: e.target.value })}
+                      className="form-field"
+                    />
+                  </div>
+                </div>
+
+                {/* Payment Method - Interactive Chips */}
                 <div>
-                  <label className="text-slate-400 block mb-1">Account</label>
+                  <label className="form-label">Payment Method</label>
+                  <div className="chip-group mt-1">
+                    {['UPI', 'CASH', 'CREDIT_CARD', 'DEBIT_CARD'].map(method => (
+                      <button
+                        key={method}
+                        type="button"
+                        onClick={() => setNewExpense({ ...newExpense, paymentMethod: method as any })}
+                        className={`chip ${newExpense.paymentMethod === method ? 'chip-selected' : ''}`}
+                      >
+                        {method === 'CREDIT_CARD' ? 'Credit Card' : method === 'DEBIT_CARD' ? 'Debit Card' : method}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Account Selection */}
+                <div>
+                  <label className="form-label">Linked Account</label>
                   <select
-                    value={newExpense.accountId}
+                    value={newExpense.accountId || ''}
                     onChange={(e) => setNewExpense({ ...newExpense, accountId: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none"
+                    className="form-field"
                   >
-                    <option value="">Select account...</option>
+                    <option value="">No linked account (Cash flow only)</option>
                     {accounts.map(acc => (
-                      <option key={acc.id} value={acc.id}>{acc.name} (${acc.balance.toLocaleString()})</option>
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} ({currency === 'INR' ? '₹' : '$'}{acc.balance.toLocaleString()})
+                      </option>
                     ))}
                   </select>
                 </div>
-              </div>
 
+                {/* Notes */}
+                <div>
+                  <label className="form-label">Notes / Remarks</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Shared with roommates"
+                    value={newExpense.notes || ''}
+                    onChange={(e) => setNewExpense({ ...newExpense, notes: e.target.value })}
+                    className="form-field"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full glow-btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl cursor-pointer transition text-sm flex items-center justify-center gap-2"
+                  >
+                    {editingExpense ? "Save Changes" : "Log Expense & Add Next"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SEARCHABLE CATEGORY PICKER OVERLAY */}
+      {showExpenseCategoryPicker && (
+        <div className="category-picker-overlay" onClick={() => setShowExpenseCategoryPicker(false)}>
+          <div className="category-picker-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="category-picker-handle" />
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="text-sm font-bold">Select Category</h4>
               <button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-lg cursor-pointer"
+                onClick={() => setShowExpenseCategoryPicker(false)}
+                className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-white"
               >
-                {editingExpense ? "Save Changes" : "Log Expense"}
+                Close
               </button>
-            </form>
+            </div>
+
+            <input
+              type="text"
+              autoFocus
+              placeholder="Search or add custom category..."
+              value={expenseCategorySearch}
+              onChange={(e) => setExpenseCategorySearch(e.target.value)}
+              className="category-search-input mb-3"
+            />
+
+            <div className="category-list">
+              {/* Dynamic Option to Add Custom Category if not exists */}
+              {expenseCategorySearch.trim() !== '' && ![
+                'Food', 'Groceries', 'Utilities', 'Medical', 'Petrol', 'Shopping',
+                'Rent', 'Fruits', 'Veggies', 'Transport', 'Entertainment', 'Education',
+                'Clothing', 'Personal Care', 'Insurance', 'Travel', 'EMI',
+                ...customExpenseCategories
+              ].some(c => c.toLowerCase() === expenseCategorySearch.trim().toLowerCase()) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newCat = expenseCategorySearch.trim();
+                    setSelectedExpenseCategory(newCat);
+                    setShowExpenseCategoryPicker(false);
+                  }}
+                  className="category-item border-b border-slate-100/50 dark:border-slate-800/50"
+                >
+                  <span className="category-item-emoji">✨</span>
+                  <span className="category-item-name font-bold text-blue-500">Create "{expenseCategorySearch.trim()}"</span>
+                  <span className="category-new-badge">NEW</span>
+                </button>
+              )}
+
+              {/* Category Options */}
+              {[
+                { name: 'Food', emoji: '🍔' },
+                { name: 'Groceries', emoji: '🛒' },
+                { name: 'Utilities', emoji: '💡' },
+                { name: 'Medical', emoji: '💊' },
+                { name: 'Petrol', emoji: '⛽' },
+                { name: 'Shopping', emoji: '🛍️' },
+                { name: 'Rent', emoji: '🏠' },
+                { name: 'Fruits', emoji: '🍎' },
+                { name: 'Veggies', emoji: '🥦' },
+                { name: 'Transport', emoji: '🚗' },
+                { name: 'Entertainment', emoji: '🎬' },
+                { name: 'Education', emoji: '🎓' },
+                { name: 'Clothing', emoji: '👕' },
+                { name: 'Personal Care', emoji: '🧴' },
+                { name: 'Insurance', emoji: '🛡️' },
+                { name: 'Travel', emoji: '✈️' },
+                { name: 'EMI', emoji: '💳' },
+                ...customExpenseCategories.map(c => ({ name: c, emoji: '🏷️' }))
+              ]
+                .filter(c => c.name.toLowerCase().includes(expenseCategorySearch.toLowerCase()))
+                .map(c => (
+                  <button
+                    key={c.name}
+                    type="button"
+                    onClick={() => {
+                      setSelectedExpenseCategory(c.name);
+                      setShowExpenseCategoryPicker(false);
+                    }}
+                    className={`category-item ${selectedExpenseCategory === c.name ? 'selected' : ''}`}
+                  >
+                    <span className="category-item-emoji">{c.emoji}</span>
+                    <span className="category-item-name text-slate-700 dark:text-slate-200">{c.name}</span>
+                    {selectedExpenseCategory === c.name && (
+                      <span className="category-item-check font-bold">✓</span>
+                    )}
+                  </button>
+                ))}
+            </div>
           </div>
         </div>
       )}
@@ -3323,69 +3496,94 @@ export default function App() {
 
       {/* DIALOG MODAL: ADD ASSET */}
       {showAddAssetModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md glass-panel rounded-3xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-slate-800/80 p-6 space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-base font-bold">Log New Physical Asset</h3>
-              <button onClick={() => setShowAddAssetModal(false)} className="text-slate-400 hover:text-white font-bold">✕</button>
+        <div className="mobile-modal-sheet">
+          <div className="mobile-modal-content">
+            <div className="mobile-modal-header">
+              <h3 className="text-base font-bold">Log New Asset or Fund</h3>
+              <button onClick={() => setShowAddAssetModal(false)} className="text-slate-400 hover:text-rose-500 font-bold p-1"><X className="h-5 w-5" /></button>
             </div>
 
-            <form onSubmit={handleCreateAsset} className="space-y-3 text-xs">
-              <div>
-                <label className="text-slate-400 block mb-1">Asset Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Real Estate Flat"
-                  value={newAsset.name || ''}
-                  onChange={(e) => setNewAsset({ ...newAsset, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+            <div className="mobile-modal-body space-y-4">
+              <form onSubmit={handleCreateAsset} className="space-y-4">
                 <div>
-                  <label className="text-slate-400 block mb-1">Asset Category</label>
-                  <select
-                    value={newAsset.type}
-                    onChange={(e) => setNewAsset({ ...newAsset, type: e.target.value as any })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none"
-                  >
-                    <option value="HOUSE">Real Estate / House</option>
-                    <option value="GOLD">Physical Gold</option>
-                    <option value="CAR">Vehicle / Car</option>
-                    <option value="ELECTRONICS">Electronics / Hardware</option>
-                    <option value="OTHER">Other Valuable Asset</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-slate-400 block mb-1">Estimated Value</label>
+                  <label className="form-label">Asset Name</label>
                   <input
-                    type="number"
+                    type="text"
                     required
-                    value={newAsset.value || ''}
-                    onChange={(e) => setNewAsset({ ...newAsset, value: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="e.g. Liquid Fund, HDFC Bank, Tesla Stocks"
+                    value={newAsset.name || ''}
+                    onChange={(e) => setNewAsset({ ...newAsset, name: e.target.value })}
+                    className="touch-input bg-slate-100/50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white"
                   />
                 </div>
-              </div>
 
-              <button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-lg cursor-pointer"
-              >
-                Log Physical Asset
-              </button>
-            </form>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="form-label">Asset Category</label>
+                    <select
+                      value={newAsset.type}
+                      onChange={(e) => setNewAsset({ ...newAsset, type: e.target.value as any })}
+                      className="form-field"
+                    >
+                      <option value="HOUSE">Real Estate / House</option>
+                      <option value="LAND">Land</option>
+                      <option value="CAR">Vehicle / Car</option>
+                      <option value="BIKE">Two-Wheeler / Bike</option>
+                      <option value="GOLD">Physical Gold</option>
+                      <option value="JEWELLERY">Jewellery / Ornaments</option>
+                      <option value="CASH">Cash / Physical Money</option>
+                      <option value="BANK_BALANCE">Bank Balance</option>
+                      <option value="ELECTRONICS">Electronics / Hardware</option>
+                      <option value="OTHERS">Other (Custom Option)</option>
+                    </select>
+                  </div>
+
+                  {newAsset.type === 'OTHERS' && (
+                    <div>
+                      <label className="form-label">Custom Asset Type</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Crypto, Art, IP"
+                        value={customAssetType}
+                        onChange={(e) => setCustomAssetType(e.target.value)}
+                        className="form-field"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="form-label">Estimated Current Value ({currency})</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="0"
+                      value={newAsset.value || ''}
+                      onChange={(e) => setNewAsset({ ...newAsset, value: Number(e.target.value) })}
+                      className="touch-input bg-slate-100/50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full glow-btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl cursor-pointer text-sm"
+                  >
+                    Log Asset / Fund
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
 
       {/* Toast Alert Popups */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 animate-bounce glass-panel p-4 rounded-xl border border-slate-200/50 dark:border-slate-800/80 flex items-center gap-3 shadow-2xl">
-          <div className={`h-2 w-2 rounded-full ${toast.type === 'success' ? 'bg-emerald-500' : toast.type === 'error' ? 'bg-rose-500' : 'bg-blue-500'}`}></div>
-          <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{toast.message}</span>
+        <div className="premium-toast">
+          <div className={`toast-dot ${toast.type === 'success' ? 'bg-emerald-500' : toast.type === 'error' ? 'bg-rose-500' : 'bg-blue-500'}`}></div>
+          <span className="toast-message">{toast.message}</span>
         </div>
       )}
 
@@ -3408,6 +3606,147 @@ export default function App() {
               >
                 Yes, Confirm
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MOBILE STICKY BOTTOM NAVIGATION BAR */}
+      <div className="mobile-bottom-nav lg:hidden">
+        <button
+          onClick={() => {
+            setActiveTab('dashboard');
+            setShowMoreSheet(false);
+          }}
+          className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+        >
+          <LayoutDashboard className="nav-icon" />
+          <span className="nav-label">Home</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('expenses');
+            setShowMoreSheet(false);
+          }}
+          className={`nav-item ${activeTab === 'expenses' ? 'active' : ''}`}
+        >
+          <Wallet className="nav-icon" />
+          <span className="nav-label">Expenses</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('investments');
+            setShowMoreSheet(false);
+          }}
+          className={`nav-item ${activeTab === 'investments' ? 'active' : ''}`}
+        >
+          <TrendingUp className="nav-icon" />
+          <span className="nav-label">Wealth</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('loans');
+            setShowMoreSheet(false);
+          }}
+          className={`nav-item ${activeTab === 'loans' ? 'active' : ''}`}
+        >
+          <CreditCard className="nav-icon" />
+          <span className="nav-label">Loans</span>
+        </button>
+
+        <button
+          onClick={() => setShowMoreSheet(true)}
+          className={`nav-item ${showMoreSheet ? 'active' : ''}`}
+        >
+          <Menu className="nav-icon" />
+          <span className="nav-label">More</span>
+        </button>
+      </div>
+
+      {/* MOBILE MORE SHEET */}
+      {showMoreSheet && (
+        <div className="category-picker-overlay" onClick={() => setShowMoreSheet(false)}>
+          <div className="category-picker-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="category-picker-handle" />
+            <div className="flex justify-between items-center mb-4 px-2">
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 dark:text-white">FinanceOS Services</h4>
+                <p className="text-[10px] text-slate-400">Navigate to other features or sign out</p>
+              </div>
+              <button
+                onClick={() => setShowMoreSheet(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-1 overflow-y-auto px-1 flex-1">
+              <button
+                onClick={() => {
+                  setActiveTab('payments');
+                  setShowMoreSheet(false);
+                }}
+                className={`more-nav-item ${activeTab === 'payments' ? 'active-nav' : ''}`}
+              >
+                <Calculator className="h-5 w-5 text-blue-500" />
+                <span>Monthly Payments</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('calendar');
+                  setShowMoreSheet(false);
+                }}
+                className={`more-nav-item ${activeTab === 'calendar' ? 'active-nav' : ''}`}
+              >
+                <Calendar className="h-5 w-5 text-indigo-500" />
+                <span>Due Date Calendar</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('reports');
+                  setShowMoreSheet(false);
+                }}
+                className={`more-nav-item ${activeTab === 'reports' ? 'active-nav' : ''}`}
+              >
+                <FileText className="h-5 w-5 text-emerald-500" />
+                <span>Financial Reports</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('admin');
+                  setShowMoreSheet(false);
+                }}
+                className={`more-nav-item ${activeTab === 'admin' ? 'active-nav' : ''}`}
+              >
+                <Settings className="h-5 w-5 text-slate-500" />
+                <span>Admin Console</span>
+              </button>
+
+              <div className="border-t border-slate-100 dark:border-slate-800/80 my-3 pt-2" />
+
+              <div className="px-4 py-2 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">USER PROFILE</span>
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">{currentUser?.name || 'Sathish Kumar'}</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowMoreSheet(false);
+                    handleLogout();
+                  }}
+                  className="flex items-center gap-1.5 text-xs font-bold text-rose-500 hover:bg-rose-500/10 px-3 py-2 rounded-xl transition"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sign Out
+                </button>
+              </div>
             </div>
           </div>
         </div>
