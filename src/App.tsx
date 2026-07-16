@@ -386,11 +386,17 @@ export default function App() {
   // Custom Asset Type
   const [customAssetType, setCustomAssetType] = useState<string>('');
 
+  // Investment Category Picker States
+  const [selectedInvestmentCategory, setSelectedInvestmentCategory] = useState<string>('MUTUAL_FUND');
+  const [showInvestmentCategoryPicker, setShowInvestmentCategoryPicker] = useState<boolean>(false);
+  const [investmentCategorySearch, setInvestmentCategorySearch] = useState<string>('');
+
   // Mobile More Sheet
   const [showMoreSheet, setShowMoreSheet] = useState<boolean>(false);
 
   // Amount input ref for auto-focus after save
   const amountInputRef = useRef<HTMLInputElement>(null);
+  const investmentNameInputRef = useRef<HTMLInputElement>(null);
 
   // Expense Form State
   const [newExpense, setNewExpense] = useState<Partial<Expense>>({
@@ -1170,9 +1176,9 @@ export default function App() {
     e.preventDefault();
     if (!newInvestment.name || !newInvestment.investedValue) return;
 
-    const finalType = newInvestment.type === 'OTHERS' && customInvestmentType.trim() !== ''
+    const finalType = selectedInvestmentCategory === 'OTHERS' && customInvestmentType.trim() !== ''
       ? customInvestmentType.trim()
-      : newInvestment.type;
+      : selectedInvestmentCategory;
 
     const investedVal = Number(newInvestment.investedValue);
     const currentVal = newInvestment.currentValue ? Number(newInvestment.currentValue) : investedVal;
@@ -1180,7 +1186,7 @@ export default function App() {
     const investmentToAdd: Investment = {
       id: `inv-${Date.now()}`,
       name: newInvestment.name,
-      type: finalType as any,
+      type: finalType,
       investedValue: investedVal,
       currentValue: currentVal,
       date: newInvestment.date || new Date().toISOString().split('T')[0],
@@ -1190,21 +1196,24 @@ export default function App() {
       notes: newInvestment.notes || ''
     };
 
-    setInvestments([...investments, investmentToAdd]);
-    setShowAddInvestmentModal(false);
-    setNewInvestment({
+    setInvestments(prev => [...prev, investmentToAdd]);
+    
+    // Show toast notification
+    showToast(`✅ ${investmentToAdd.name} - ${formatCurrency(investedVal)} logged!`, 'success');
+
+    // Clear form fields for quick next entry but preserve type/date/SIP preferences
+    setNewInvestment(prev => ({
+      ...prev,
       name: '',
-      type: 'MUTUAL_FUND',
       investedValue: 0,
       currentValue: 0,
-      date: new Date().toISOString().split('T')[0],
-      isSIP: false,
-      sipAmount: 0,
-      sipDate: 5,
       notes: ''
-    });
-    setCustomInvestmentType('');
-    showToast("Investment added successfully!", "success");
+    }));
+
+    // Auto-focus name field
+    setTimeout(() => {
+      investmentNameInputRef.current?.focus();
+    }, 80);
   };
 
   // Handle Add Asset Submission
@@ -3920,154 +3929,224 @@ export default function App() {
 
       {/* DIALOG MODAL: ADD INVESTMENT */}
       {showAddInvestmentModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md glass-panel rounded-3xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-slate-800/80 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center">
-              <h3 className="text-base font-bold">Log New Investment Asset</h3>
+        <div className="mobile-modal-sheet">
+          <div className="mobile-modal-content">
+            <div className="mobile-modal-header">
+              <h3 className="text-base font-bold">Log New Investment</h3>
               <button onClick={() => setShowAddInvestmentModal(false)} className="text-slate-400 hover:text-rose-500 font-bold p-1"><X className="h-5 w-5" /></button>
             </div>
 
-            <form onSubmit={handleCreateInvestment} className="space-y-3 text-xs">
-              <div>
-                <label className="text-slate-400 block mb-1">Fund / Stock Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Parag Parikh Flexi Cap"
-                  value={newInvestment.name || ''}
-                  onChange={(e) => setNewInvestment({ ...newInvestment, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+            <div className="mobile-modal-body space-y-4">
+              <form onSubmit={handleCreateInvestment} className="space-y-4">
+                
+                {/* Name field: large touch target, auto-focus ref */}
                 <div>
-                  <label className="text-slate-400 block mb-1">Asset Type</label>
-                  <select
-                    value={newInvestment.type}
-                    onChange={(e) => setNewInvestment({ ...newInvestment, type: e.target.value as any })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none"
-                  >
-                    <option value="MUTUAL_FUND">Mutual Fund</option>
-                    <option value="STOCK">Stock / Equity</option>
-                    <option value="GOLD">Gold</option>
-                    <option value="PPF">Provident Fund (PPF)</option>
-                    <option value="EPF">EPF</option>
-                    <option value="FD">Fixed Deposit (FD)</option>
-                    <option value="RD">Recurring Deposit (RD)</option>
-                    <option value="CRYPTO">Cryptocurrency</option>
-                    <option value="LAND">Land</option>
-                    <option value="HOUSE">House</option>
-                    <option value="BOND">Treasury Bond</option>
-                    <option value="OTHERS">Other (Custom Option)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-slate-400 block mb-1">Invested Principal</label>
+                  <label className="form-label">Asset / Fund Name</label>
                   <input
-                    type="number"
-                    required
-                    value={newInvestment.investedValue || ''}
-                    onChange={(e) => setNewInvestment({ ...newInvestment, investedValue: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-              </div>
-
-              {newInvestment.type === 'OTHERS' && (
-                <div>
-                  <label className="text-slate-400 block mb-1">Custom Investment Type</label>
-                  <input
+                    ref={investmentNameInputRef}
                     type="text"
                     required
-                    placeholder="e.g. Gold ETF, Smallcase, Index Fund"
-                    value={customInvestmentType}
-                    onChange={(e) => setCustomInvestmentType(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="e.g. Parag Parikh Flexi Cap, HDFC Stock"
+                    value={newInvestment.name || ''}
+                    onChange={(e) => setNewInvestment({ ...newInvestment, name: e.target.value })}
+                    className="touch-input bg-slate-100/50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white"
+                    autoFocus
                   />
                 </div>
-              )}
 
-              <div className="grid grid-cols-2 gap-3">
+                {/* Searchable / Selectable Category Selector */}
                 <div>
-                  <label className="text-slate-400 block mb-1">Current Value (Optional)</label>
-                  <input
-                    type="number"
-                    placeholder="Same as principal if blank"
-                    value={newInvestment.currentValue || ''}
-                    onChange={(e) => setNewInvestment({ ...newInvestment, currentValue: e.target.value ? Number(e.target.value) : undefined })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
+                  <label className="form-label">Investment Type</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInvestmentCategorySearch('');
+                      setShowInvestmentCategoryPicker(true);
+                    }}
+                    className="touch-input text-left bg-slate-100/50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white flex justify-between items-center cursor-pointer"
+                  >
+                    <span className="font-semibold text-slate-700 dark:text-slate-255">
+                      {selectedInvestmentCategory ? selectedInvestmentCategory.replace('_', ' ') : <span className="text-slate-400 font-normal">Select type...</span>}
+                    </span>
+                    <span className="text-slate-400">▼</span>
+                  </button>
                 </div>
+
+                {selectedInvestmentCategory === 'OTHERS' && (
+                  <div>
+                    <label className="form-label">Custom Type Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Gold ETF, Smallcase"
+                      value={customInvestmentType}
+                      onChange={(e) => setCustomInvestmentType(e.target.value)}
+                      className="form-field"
+                    />
+                  </div>
+                )}
+
+                {/* Principal Invested & Current Valuation */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="form-label">Principal Amount ({currency === 'INR' ? '₹' : '$'})</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="0.00"
+                      value={newInvestment.investedValue || ''}
+                      onChange={(e) => setNewInvestment({ ...newInvestment, investedValue: Number(e.target.value) })}
+                      className="form-field font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Current Value (Optional)</label>
+                    <input
+                      type="number"
+                      placeholder="Same as principal"
+                      value={newInvestment.currentValue || ''}
+                      onChange={(e) => setNewInvestment({ ...newInvestment, currentValue: e.target.value ? Number(e.target.value) : undefined })}
+                      className="form-field"
+                    />
+                  </div>
+                </div>
+
+                {/* Investment Date */}
                 <div>
-                  <label className="text-slate-400 block mb-1">Investment Date</label>
+                  <label className="form-label">Investment Date</label>
                   <input
                     type="date"
                     required
                     value={newInvestment.date || ''}
                     onChange={(e) => setNewInvestment({ ...newInvestment, date: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="form-field"
                   />
                 </div>
-              </div>
 
-              <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl space-y-2 border border-slate-200/50 dark:border-slate-800/80">
-                <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700 dark:text-slate-300">
+                {/* SIP Setting */}
+                <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl space-y-2 border border-slate-200/50 dark:border-slate-800/80">
+                  <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700 dark:text-slate-350">
+                    <input
+                      type="checkbox"
+                      checked={!!newInvestment.isSIP}
+                      onChange={(e) => setNewInvestment({ ...newInvestment, isSIP: e.target.checked })}
+                      className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                    />
+                    <span>This is a Systematic Investment Plan (SIP)</span>
+                  </label>
+
+                  {newInvestment.isSIP && (
+                    <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-200/30 dark:border-slate-800/50">
+                      <div>
+                        <label className="text-[10px] text-slate-450 block mb-0.5">Monthly SIP Amount</label>
+                        <input
+                          type="number"
+                          placeholder="e.g. 5000"
+                          value={newInvestment.sipAmount || ''}
+                          onChange={(e) => setNewInvestment({ ...newInvestment, sipAmount: Number(e.target.value) })}
+                          className="w-full px-2 py-1.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-200 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-450 block mb-0.5">SIP Day of Month</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="31"
+                          placeholder="5"
+                          value={newInvestment.sipDate || ''}
+                          onChange={(e) => setNewInvestment({ ...newInvestment, sipDate: Number(e.target.value) })}
+                          className="w-full px-2 py-1.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-200 outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="form-label">Notes & Remarks</label>
                   <input
-                    type="checkbox"
-                    checked={!!newInvestment.isSIP}
-                    onChange={(e) => setNewInvestment({ ...newInvestment, isSIP: e.target.checked })}
-                    className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                    type="text"
+                    placeholder="e.g. Tax saving 80C"
+                    value={newInvestment.notes || ''}
+                    onChange={(e) => setNewInvestment({ ...newInvestment, notes: e.target.value })}
+                    className="form-field"
                   />
-                  <span>This is a Systematic Investment Plan (SIP)</span>
-                </label>
+                </div>
 
-                {newInvestment.isSIP && (
-                  <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-200/30 dark:border-slate-800/50">
-                    <div>
-                      <label className="text-[10px] text-slate-450 block mb-0.5">Monthly SIP Amount</label>
-                      <input
-                        type="number"
-                        placeholder="e.g. 5000"
-                        value={newInvestment.sipAmount || ''}
-                        onChange={(e) => setNewInvestment({ ...newInvestment, sipAmount: Number(e.target.value) })}
-                        className="w-full px-2 py-1.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-200 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-slate-450 block mb-0.5">SIP Day of Month</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="31"
-                        placeholder="5"
-                        value={newInvestment.sipDate || ''}
-                        onChange={(e) => setNewInvestment({ ...newInvestment, sipDate: Number(e.target.value) })}
-                        className="w-full px-2 py-1.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-200 outline-none"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full glow-btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl cursor-pointer text-sm"
+                  >
+                    Log Investment & Add Next
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
-              <div>
-                <label className="text-slate-400 block mb-1">Notes / Remarks</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Tax saving section 80C"
-                  value={newInvestment.notes || ''}
-                  onChange={(e) => setNewInvestment({ ...newInvestment, notes: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-
+      {/* SEARCHABLE INVESTMENT CATEGORY PICKER OVERLAY */}
+      {showInvestmentCategoryPicker && (
+        <div className="category-picker-overlay" onClick={() => setShowInvestmentCategoryPicker(false)}>
+          <div className="category-picker-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="category-picker-handle" />
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="text-sm font-bold">Select Investment Class</h4>
               <button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl cursor-pointer transition text-xs mt-2"
+                onClick={() => setShowInvestmentCategoryPicker(false)}
+                className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-white"
               >
-                Log Investment Asset
+                Close
               </button>
-            </form>
+            </div>
+
+            <input
+              type="text"
+              autoFocus
+              placeholder="Search investment classes..."
+              value={investmentCategorySearch}
+              onChange={(e) => setInvestmentCategorySearch(e.target.value)}
+              className="category-search-input mb-3"
+            />
+
+            <div className="category-list">
+              {[
+                { id: 'MUTUAL_FUND', name: 'Mutual Fund', emoji: '📈' },
+                { id: 'STOCK', name: 'Stock / Equity', emoji: '📊' },
+                { id: 'GOLD', name: 'Gold', emoji: '🪙' },
+                { id: 'PPF', name: 'Provident Fund (PPF)', emoji: '🏦' },
+                { id: 'EPF', name: 'EPF', emoji: '💼' },
+                { id: 'FD', name: 'Fixed Deposit (FD)', emoji: '🔒' },
+                { id: 'RD', name: 'Recurring Deposit (RD)', emoji: '🔁' },
+                { id: 'CRYPTO', name: 'Cryptocurrency', emoji: '🪙' },
+                { id: 'LAND', name: 'Land Property', emoji: '🏞️' },
+                { id: 'HOUSE', name: 'House / Real Estate', emoji: '🏠' },
+                { id: 'BOND', name: 'Treasury Bond', emoji: '📜' },
+                { id: 'OTHERS', name: 'Other Custom Type', emoji: '🏷️' }
+              ]
+                .filter(c => c.name.toLowerCase().includes(investmentCategorySearch.toLowerCase()))
+                .map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedInvestmentCategory(c.id);
+                      setShowInvestmentCategoryPicker(false);
+                    }}
+                    className={`category-item ${selectedInvestmentCategory === c.id ? 'selected' : ''}`}
+                  >
+                    <span className="category-item-emoji">{c.emoji}</span>
+                    <span className="category-item-name text-slate-700 dark:text-slate-200">{c.name}</span>
+                    {selectedInvestmentCategory === c.id && (
+                      <span className="category-item-check font-bold">✓</span>
+                    )}
+                  </button>
+                ))}
+            </div>
           </div>
         </div>
       )}
