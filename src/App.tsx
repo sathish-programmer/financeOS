@@ -218,6 +218,19 @@ export default function App() {
     return `${symbol}${Number(amount).toLocaleString(locale, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   };
 
+  // Format date string to human-readable format (e.g. "18 Jul 2026")
+  const formatDate = (dateStr: string | undefined | null): string => {
+    if (!dateStr) return '—';
+    try {
+      // Handle both ISO strings (2026-07-18T00:00:00.000Z) and plain dates (2026-07-18)
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
+
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterType, setFilterType] = useState<string>('ALL');
@@ -2115,7 +2128,7 @@ export default function App() {
                         const associatedLoan = loans.find(l => l.id === p.loanId);
                         return (
                           <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10">
-                            <td className="py-4 px-6 text-slate-500 dark:text-slate-400 font-semibold">{p.paymentDate}</td>
+                            <td className="py-4 px-6 text-slate-500 dark:text-slate-400 font-semibold">{formatDate(p.paymentDate)}</td>
                             <td className="py-4 px-6 font-bold">
                               <span className="block text-slate-950 dark:text-white">{associatedLoan?.name || 'Unknown Loan'}</span>
                               <span className="text-[10px] text-slate-400 font-normal">{associatedLoan?.lenderName}</span>
@@ -2367,7 +2380,7 @@ export default function App() {
                       <div key={e.id || idx} className="p-3 rounded-xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
                         <div>
                           <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{e.category}</span>
-                          <span className="text-[9px] text-slate-400">{e.date} • {e.paymentMethod}</span>
+                          <span className="text-[9px] text-slate-400">{formatDate(e.date)} • {e.paymentMethod}</span>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-xs font-bold text-rose-500">-{formatCurrency(e.amount || 0)}</span>
@@ -2414,7 +2427,7 @@ export default function App() {
                         <div key={inc.id || idx} className="p-3 rounded-xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
                           <div>
                             <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{inc.category}</span>
-                            <span className="text-[9px] text-slate-400">{inc.date}</span>
+                            <span className="text-[9px] text-slate-400">{formatDate(inc.date)}</span>
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="text-xs font-bold text-emerald-500">+{formatCurrency(inc.amount || 0)}</span>
@@ -2818,7 +2831,7 @@ export default function App() {
                               <div className="text-[9px] text-slate-400 space-x-2">
                                 <span>{inv.type.replace('_', ' ')}</span>
                                 <span>•</span>
-                                <span>{inv.date || 'No Date'}</span>
+                                <span>{inv.date ? formatDate(inv.date) : 'No Date'}</span>
                               </div>
                               {inv.notes && (
                                 <p className="text-[9px] text-slate-450 italic max-w-[200px] truncate">"{inv.notes}"</p>
