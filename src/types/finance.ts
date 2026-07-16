@@ -112,6 +112,7 @@ export interface Goal {
   targetAmount: number;
   currentAmount: number;
   type: 'EXPENSE' | 'INVESTMENT';
+  classification?: string;
   targetDurationMonths?: number;
   targetDate?: string;
 }

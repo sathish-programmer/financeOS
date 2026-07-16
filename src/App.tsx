@@ -291,9 +291,11 @@ export default function App() {
     targetAmount: 0,
     currentAmount: 0,
     type: 'INVESTMENT',
+    classification: 'RETIREMENT',
     targetDurationMonths: 12,
     targetDate: ''
   });
+  const [customGoalClassification, setCustomGoalClassification] = useState<string>('');
 
   // Search/Filter/Sort for Investments
   const [investmentSearch, setInvestmentSearch] = useState<string>('');
@@ -1243,12 +1245,17 @@ export default function App() {
     e.preventDefault();
     if (!newGoal.name || !newGoal.targetAmount) return;
 
+    const finalClassification = newGoal.classification === 'OTHERS' && customGoalClassification.trim() !== ''
+      ? customGoalClassification.trim()
+      : newGoal.classification || 'OTHER';
+
     const goalToAdd: Goal = {
       id: `goal-${Date.now()}`,
       name: newGoal.name,
       targetAmount: Number(newGoal.targetAmount),
       currentAmount: Number(newGoal.currentAmount || 0),
       type: newGoal.type as 'EXPENSE' | 'INVESTMENT',
+      classification: finalClassification,
       targetDurationMonths: newGoal.targetDurationMonths ? Number(newGoal.targetDurationMonths) : undefined,
       targetDate: newGoal.targetDate || undefined
     };
@@ -1260,9 +1267,11 @@ export default function App() {
       targetAmount: 0,
       currentAmount: 0,
       type: 'INVESTMENT',
+      classification: 'RETIREMENT',
       targetDurationMonths: 12,
       targetDate: ''
     });
+    setCustomGoalClassification('');
     showToast("Financial Goal created successfully!", "success");
   };
 
@@ -2266,7 +2275,7 @@ export default function App() {
                       return (
                         <div key={goal.id} className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 space-y-2">
                           <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-700 dark:text-slate-350">{goal.name}</span>
+                            <span className="font-bold text-slate-700 dark:text-slate-350">{goal.name} <span className="text-[9px] bg-slate-200/50 dark:bg-slate-800 text-slate-500 font-normal px-2 py-0.5 rounded-md ml-1">{goal.classification ? goal.classification.replace('_', ' ') : 'General'}</span></span>
                             <button
                               onClick={() => handleDeleteGoal(goal.id)}
                               className="text-slate-400 hover:text-rose-500"
@@ -2678,7 +2687,7 @@ export default function App() {
                           return (
                             <div key={goal.id} className="space-y-1.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80">
                               <div className="flex justify-between items-center text-xs">
-                                <span className="font-bold text-slate-700 dark:text-slate-350">{goal.name}</span>
+                                <span className="font-bold text-slate-700 dark:text-slate-350">{goal.name} <span className="text-[9px] bg-slate-200/50 dark:bg-slate-800 text-slate-500 font-normal px-2 py-0.5 rounded-md ml-1">{goal.classification ? goal.classification.replace('_', ' ') : 'General'}</span></span>
                                 <button
                                   onClick={() => handleDeleteGoal(goal.id)}
                                   className="text-slate-400 hover:text-rose-500"
@@ -4283,7 +4292,7 @@ export default function App() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-400 block mb-1">Goal Classification</label>
+                  <label className="text-slate-400 block mb-1">Goal Type</label>
                   <select
                     value={newGoal.type}
                     onChange={(e) => setNewGoal({ ...newGoal, type: e.target.value as any })}
@@ -4293,6 +4302,39 @@ export default function App() {
                     <option value="EXPENSE">Expense Limit / Cap</option>
                   </select>
                 </div>
+                <div>
+                  <label className="text-slate-400 block mb-1">Classification</label>
+                  <select
+                    value={newGoal.classification}
+                    onChange={(e) => setNewGoal({ ...newGoal, classification: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none"
+                  >
+                    <option value="RETIREMENT">Retirement</option>
+                    <option value="HOME">Buy Home</option>
+                    <option value="CAR">Buy Car / Vehicle</option>
+                    <option value="EDUCATION">Education</option>
+                    <option value="TRAVEL">Travel / Holiday</option>
+                    <option value="EMERGENCY">Emergency Cushion</option>
+                    <option value="OTHERS">Other (Custom Option)</option>
+                  </select>
+                </div>
+              </div>
+
+              {newGoal.classification === 'OTHERS' && (
+                <div>
+                  <label className="text-slate-400 block mb-1">Custom Goal Category</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Wedding, Laptop, Gadgets"
+                    value={customGoalClassification}
+                    onChange={(e) => setCustomGoalClassification(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-slate-400 block mb-1">Target Duration (Months)</label>
                   <input
