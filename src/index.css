@@ -264,7 +264,7 @@ body {
 .category-picker-overlay {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 70;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
   display: flex;
@@ -413,7 +413,7 @@ body {
 .mobile-modal-sheet {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 60;
   display: flex;
   align-items: flex-end;
   justify-content: center;

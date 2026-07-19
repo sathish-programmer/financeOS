@@ -3622,7 +3622,7 @@ export default function App() {
             </div>
 
             <div className="mobile-modal-body space-y-4">
-              <form onSubmit={handleCreateExpense} className="space-y-4">
+              <form id="expense-form" onSubmit={handleCreateExpense} className="space-y-4">
                 
                 {/* Amount input: large touch target, focused first */}
                 <div>
@@ -3729,7 +3729,7 @@ export default function App() {
                   />
                 </div>
 
-                <div className="pt-2">
+                <div className="pt-2 hidden md:block">
                   <button
                     type="submit"
                     className="w-full glow-btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl cursor-pointer transition text-sm flex items-center justify-center gap-2"
@@ -3738,6 +3738,16 @@ export default function App() {
                   </button>
                 </div>
               </form>
+            </div>
+            
+            <div className="mobile-modal-footer md:hidden">
+              <button
+                type="submit"
+                form="expense-form"
+                className="w-full glow-btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl cursor-pointer transition text-sm flex items-center justify-center gap-2"
+              >
+                {editingExpense ? "Save Changes" : "Log Expense & Add Next"}
+              </button>
             </div>
           </div>
         </div>
