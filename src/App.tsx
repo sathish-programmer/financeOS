@@ -117,6 +117,12 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
+  // Settings Tab State
+  const [settingsForm, setSettingsForm] = useState({ name: '', email: '', password: '', familyName: '' });
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+  const [settingsSuccess, setSettingsSuccess] = useState('');
+
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -671,6 +677,132 @@ export default function App() {
   useEffect(() => {
     if (activeTab === 'family') fetchFamilyGroup();
   }, [activeTab, currentUser]);
+
+  // Sync settings form fields
+  useEffect(() => {
+    if (currentUser) {
+      setSettingsForm({
+        name: currentUser.name || '',
+        email: currentUser.email || '',
+        password: '',
+        familyName: familyGroup?.name || '',
+      });
+      setSettingsError('');
+      setSettingsSuccess('');
+    }
+  }, [activeTab, currentUser, familyGroup]);
+
+  // Handle Profile Update
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSettingsLoading(true);
+    setSettingsError('');
+    setSettingsSuccess('');
+
+    try {
+      if (!currentUser || currentUser.token.startsWith('demo-')) {
+        // Simulate in demo mode
+        const updatedUser = { ...currentUser, name: settingsForm.name, email: settingsForm.email };
+        localStorage.setItem('finance_os_user', JSON.stringify(updatedUser));
+        setCurrentUser(updatedUser as any);
+        setSettingsSuccess('Profile updated successfully! (Demo Mode)');
+        showToast('Profile updated!', 'success');
+        return;
+      }
+
+      const headers = { 'Content-Type': 'application/json', 'x-user-id': currentUser.token };
+      const body: any = { name: settingsForm.name, email: settingsForm.email };
+      if (settingsForm.password) body.passwordHash = settingsForm.password;
+
+      const res = await fetch(`${API_BASE}/auth/profile`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.message); }
+      const data = await res.json();
+      
+      const updatedUser = { ...data.user, token: data.token };
+      localStorage.setItem('finance_os_user', JSON.stringify(updatedUser));
+      setCurrentUser(updatedUser);
+      setSettingsSuccess('Profile updated successfully!');
+      showToast('Profile updated!', 'success');
+    } catch (err: any) {
+      setSettingsError(err.message);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  // Handle Family Rename
+  const handleRenameFamily = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!settingsForm.familyName.trim()) return;
+    setSettingsLoading(true);
+    setSettingsError('');
+    setSettingsSuccess('');
+
+    try {
+      if (!currentUser || currentUser.token.startsWith('demo-')) {
+        if (familyGroup) {
+          const updatedGroup = { ...familyGroup, name: settingsForm.familyName };
+          setFamilyGroup(updatedGroup);
+          localStorage.setItem('finance_os_family_group', JSON.stringify(updatedGroup));
+          setSettingsSuccess('Family group renamed! (Demo Mode)');
+          showToast('Family group renamed!', 'success');
+        }
+        return;
+      }
+
+      const headers = { 'Content-Type': 'application/json', 'x-user-id': currentUser.token };
+      const res = await fetch(`${API_BASE}/family/rename`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name: settingsForm.familyName })
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.message); }
+      const group = await res.json();
+      setFamilyGroup(group);
+      localStorage.setItem('finance_os_family_group', JSON.stringify(group));
+      setSettingsSuccess('Family group renamed successfully!');
+      showToast('Family group renamed!', 'success');
+    } catch (err: any) {
+      setSettingsError(err.message);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  // Handle Delete Account
+  const handleDeleteUserAccount = async () => {
+    setSettingsLoading(true);
+    setSettingsError('');
+
+    try {
+      if (!currentUser || currentUser.token.startsWith('demo-')) {
+        // Clear everything locally
+        localStorage.clear();
+        setCurrentUser(null);
+        setFamilyGroup(null);
+        showToast('Demo data and account cleared!', 'info');
+        return;
+      }
+
+      const headers = { 'Content-Type': 'application/json', 'x-user-id': currentUser.token };
+      const res = await fetch(`${API_BASE}/auth/delete`, { method: 'DELETE', headers });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.message); }
+      
+      // Log out
+      localStorage.clear();
+      setCurrentUser(null);
+      setFamilyGroup(null);
+      showToast('Your account was deleted permanently.', 'info');
+    } catch (err: any) {
+      setSettingsError(err.message);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
 
 
   // Recalculator: Ensure loan currentOutstandings reflect all standard payments applied to them
@@ -1804,6 +1936,17 @@ export default function App() {
               <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase px-3">System</h3>
               <nav className="space-y-1">
                 <button
+                  onClick={() => setActiveTab('settings')}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                    activeTab === 'settings'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/40'
+                  }`}
+                >
+                  <Settings className="h-4 w-4" />
+                  Settings
+                </button>
+                <button
                   onClick={() => setActiveTab('admin')}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${
                     activeTab === 'admin'
@@ -1811,7 +1954,7 @@ export default function App() {
                       : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/40'
                   }`}
                 >
-                  <Settings className="h-4 w-4" />
+                  <Sliders className="h-4 w-4" />
                   Admin Console
                 </button>
               </nav>
@@ -3145,6 +3288,198 @@ export default function App() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 7.5: SETTINGS */}
+          {activeTab === 'settings' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="glass-card rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-l-4 border-l-blue-500 relative overflow-hidden">
+                <div className="absolute inset-0 opacity-5" style={{ background: 'radial-gradient(circle at 80% 50%, #2563eb, transparent 60%)' }} />
+                <div className="space-y-1 relative z-10">
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 uppercase tracking-wider">Account Settings</span>
+                  <h2 className="text-xl font-bold tracking-tight">Manage Your Profile</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Update your account details, manage your family group, or delete your account.
+                  </p>
+                </div>
+              </div>
+
+              {settingsError && (
+                <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-semibold">
+                  ⚠️ {settingsError}
+                </div>
+              )}
+
+              {settingsSuccess && (
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-semibold">
+                  ✅ {settingsSuccess}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* PROFILE SETTINGS */}
+                <div className="glass-card rounded-2xl p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                      <User className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold">Profile Details</h3>
+                      <p className="text-[10px] text-slate-400">Update name, email, and password</p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleUpdateProfile} className="space-y-3">
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-1">Full Name</label>
+                      <input
+                        type="text"
+                        value={settingsForm.name}
+                        onChange={e => setSettingsForm({ ...settingsForm, name: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-1">Email Address</label>
+                      <input
+                        type="email"
+                        value={settingsForm.email}
+                        onChange={e => setSettingsForm({ ...settingsForm, email: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-1">New Password (optional)</label>
+                      <input
+                        type="password"
+                        placeholder="Leave blank to keep current"
+                        value={settingsForm.password}
+                        onChange={e => setSettingsForm({ ...settingsForm, password: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={settingsLoading}
+                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90 text-white text-xs font-bold py-2.5 rounded-xl transition cursor-pointer disabled:opacity-50"
+                    >
+                      {settingsLoading ? 'Saving Profile…' : 'Save Profile Changes'}
+                    </button>
+                  </form>
+                </div>
+
+                {/* FAMILY GROUP SETTINGS */}
+                <div className="glass-card rounded-2xl p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center shadow-lg shadow-pink-500/20">
+                      <Users className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold">Family Configuration</h3>
+                      <p className="text-[10px] text-slate-400">Rename or manage your family group</p>
+                    </div>
+                  </div>
+
+                  {familyGroup ? (() => {
+                    const currentMember = familyGroup.members?.find((m: any) => m.user?.email === currentUser?.email);
+                    const isOwner = currentMember?.role === 'OWNER';
+
+                    return (
+                      <div className="space-y-4">
+                        <form onSubmit={handleRenameFamily} className="space-y-3">
+                          <div>
+                            <label className="text-[10px] text-slate-400 block mb-1">Family Group Name</label>
+                            <input
+                              type="text"
+                              value={settingsForm.familyName}
+                              onChange={e => setSettingsForm({ ...settingsForm, familyName: e.target.value })}
+                              disabled={!isOwner}
+                              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs outline-none focus:ring-2 focus:ring-pink-500 text-slate-800 dark:text-white disabled:opacity-50"
+                            />
+                          </div>
+
+                          {isOwner ? (
+                            <button
+                              type="submit"
+                              disabled={settingsLoading || !settingsForm.familyName.trim()}
+                              className="w-full bg-gradient-to-r from-pink-500 to-rose-600 hover:opacity-90 text-white text-xs font-bold py-2.5 rounded-xl transition cursor-pointer disabled:opacity-50"
+                            >
+                              {settingsLoading ? 'Renaming…' : 'Rename Family Group'}
+                            </button>
+                          ) : (
+                            <p className="text-[10px] text-slate-400 italic">
+                              ℹ️ You are a member. Only the family Owner ({familyGroup.members?.find((m: any) => m.role === 'OWNER')?.user?.name}) can rename the group.
+                            </p>
+                          )}
+                        </form>
+
+                        <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
+                          <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Family Invite Code</span>
+                          <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
+                            <span className="flex-1 font-mono text-sm font-black tracking-widest text-slate-800 dark:text-white">{familyGroup.inviteCode}</span>
+                            <button
+                              onClick={() => copyInviteCode(familyGroup.inviteCode)}
+                              className="h-7 w-7 rounded-lg bg-blue-600 hover:bg-blue-500 flex items-center justify-center text-white transition shrink-0"
+                            >
+                              {copiedCode ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })() : (
+                    <div className="text-center py-6 text-slate-400 space-y-2">
+                      <p className="text-xs">You are not in a family group yet.</p>
+                      <button
+                        onClick={() => setActiveTab('family')}
+                        className="text-xs text-pink-500 font-bold hover:underline"
+                      >
+                        Create or Join Group →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* DANGER ZONE */}
+              <div className="glass-card rounded-2xl p-6 border border-rose-500/20 bg-rose-500/[0.02] space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-rose-500/10 flex items-center justify-center shadow-lg shadow-rose-500/5">
+                    <AlertTriangle className="h-5 w-5 text-rose-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-rose-500">Danger Zone</h3>
+                    <p className="text-[10px] text-slate-400">Irreversible actions on your account</p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-rose-500/5 border border-rose-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <h4 className="text-xs font-bold text-slate-800 dark:text-white">Permanently Delete Account</h4>
+                    <p className="text-[10px] text-slate-400 leading-normal max-w-lg">
+                      Deleting your account will erase your user profile and permanently purge all associated data, including recorded expenses, investments, loans, budgets, and family group memberships.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => triggerConfirm(
+                      'Delete Account Permanently',
+                      'WARNING: This action is completely irreversible. Are you absolutely sure you want to permanently delete your account and delete all your financial records?',
+                      handleDeleteUserAccount
+                    )}
+                    disabled={settingsLoading}
+                    className="shrink-0 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-500 px-4 py-2.5 rounded-xl transition cursor-pointer disabled:opacity-50"
+                  >
+                    Delete My Account
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -5100,6 +5435,17 @@ export default function App() {
                 {familyGroup && <span className="ml-auto h-2 w-2 rounded-full bg-emerald-400" />}
               </button>
 
+               <button
+                onClick={() => {
+                  setActiveTab('settings');
+                  setShowMoreSheet(false);
+                }}
+                className={`more-nav-item ${activeTab === 'settings' ? 'active-nav' : ''}`}
+              >
+                <Settings className="h-5 w-5 text-indigo-500" />
+                <span>Settings</span>
+              </button>
+
               <button
                 onClick={() => {
                   setActiveTab('admin');
@@ -5107,7 +5453,7 @@ export default function App() {
                 }}
                 className={`more-nav-item ${activeTab === 'admin' ? 'active-nav' : ''}`}
               >
-                <Settings className="h-5 w-5 text-slate-500" />
+                <Sliders className="h-5 w-5 text-slate-500" />
                 <span>Admin Console</span>
               </button>
 

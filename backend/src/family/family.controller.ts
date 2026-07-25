@@ -52,4 +52,11 @@ export class FamilyController {
     const realId = this.getRealUserId(userId);
     return this.familyService.getFamilyData(realId);
   }
+
+  /** PUT /api/family/rename — { name: string } */
+  @Post('rename')
+  async renameFamily(@Headers('x-user-id') userId: string, @Body() body: { name: string }) {
+    const realId = this.getRealUserId(userId);
+    return this.familyService.renameFamily(realId, body.name);
+  }
 }

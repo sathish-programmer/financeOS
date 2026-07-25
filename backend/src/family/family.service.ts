@@ -154,4 +154,22 @@ export class FamilyService {
       accounts: enrich(accounts),
     };
   }
+
+  /** Rename the family group (only allowed for OWNER role) */
+  async renameFamily(userId: string, newName: string) {
+    const membership = await this.prisma.familyMember.findFirst({
+      where: { userId },
+    });
+    if (!membership) {
+      throw new NotFoundException('You are not in a family group.');
+    }
+    if (membership.role !== 'OWNER') {
+      throw new BadRequestException('Only the family owner can rename the group.');
+    }
+
+    return this.prisma.familyGroup.update({
+      where: { id: membership.familyGroupId },
+      data: { name: newName },
+    });
+  }
 }
