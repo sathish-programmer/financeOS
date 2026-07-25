@@ -29,12 +29,17 @@ import {
   ChevronRight,
   Calculator,
   User,
+  Users,
   MapPin,
   Clock,
   Sparkles,
   BookOpen,
   Menu,
-  LogOut
+  LogOut,
+  Copy,
+  Crown,
+  Heart,
+  UserPlus
 } from 'lucide-react';
 import {
   AreaChart,
@@ -310,6 +315,152 @@ export default function App() {
   });
   const [customGoalClassification, setCustomGoalClassification] = useState<string>('');
 
+  // ── FAMILY ACCOUNT STATE ──────────────────────────────────────────────────
+  const [familyGroup, setFamilyGroup] = useState<any | null>(() => {
+    const saved = localStorage.getItem('finance_os_family_group');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [familyData, setFamilyData] = useState<any>({
+    expenses: [], loans: [], investments: [], assets: [], budgets: [], accounts: []
+  });
+  const [familyLoading, setFamilyLoading] = useState(false);
+  const [familyError, setFamilyError] = useState('');
+  const [familyCreateName, setFamilyCreateName] = useState('');
+  const [familyJoinCode, setFamilyJoinCode] = useState('');
+  const [familyMode, setFamilyMode] = useState<'create' | 'join'>('create');
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  // Demo family data for offline / demo-token users
+  const DEMO_FAMILY_GROUP = {
+    id: 'demo-family',
+    name: 'Kumar Family',
+    inviteCode: 'KUMAR1',
+    members: [
+      { id: 'm1', role: 'OWNER', user: { id: 'u1', name: currentUser?.name || 'You', email: currentUser?.email || 'you@demo.com' } },
+      { id: 'm2', role: 'MEMBER', user: { id: 'u2', name: 'Priya Kumar', email: 'priya@demo.com' } },
+    ]
+  };
+  const DEMO_FAMILY_DATA = {
+    expenses: [
+      ...expenses.map(e => ({ ...e, user: { id: 'u1', name: currentUser?.name || 'You' } })),
+      { id: 'fe1', date: new Date().toISOString(), category: 'Groceries', amount: 3200, paymentMethod: 'UPI', notes: 'Weekly shopping', user: { id: 'u2', name: 'Priya Kumar' } },
+      { id: 'fe2', date: new Date(Date.now() - 86400000).toISOString(), category: 'Clothing', amount: 4500, paymentMethod: 'CREDIT_CARD', notes: 'Saree', user: { id: 'u2', name: 'Priya Kumar' } },
+      { id: 'fe3', date: new Date(Date.now() - 2*86400000).toISOString(), category: 'Medical', amount: 800, paymentMethod: 'CASH', notes: 'Pharmacy', user: { id: 'u2', name: 'Priya Kumar' } },
+    ],
+    loans: [
+      ...loans.map(l => ({ ...l, user: { id: 'u1', name: currentUser?.name || 'You' } })),
+      { id: 'fl1', name: 'Car Loan', type: 'VEHICLE_LOAN', currentOutstanding: 380000, lenderName: 'HDFC Bank', emi: 12000, status: 'ACTIVE', user: { id: 'u2', name: 'Priya Kumar' } },
+    ],
+    investments: [
+      ...investments.map(i => ({ ...i, user: { id: 'u1', name: currentUser?.name || 'You' } })),
+      { id: 'fi1', name: 'LIC Policy', type: 'OTHER', investedValue: 120000, currentValue: 135000, user: { id: 'u2', name: 'Priya Kumar' } },
+      { id: 'fi2', name: 'Gold Savings', type: 'GOLD', investedValue: 80000, currentValue: 92000, user: { id: 'u2', name: 'Priya Kumar' } },
+    ],
+    assets: [
+      ...assets.map(a => ({ ...a, user: { id: 'u1', name: currentUser?.name || 'You' } })),
+      { id: 'fa1', name: 'Gold Jewellery', type: 'GOLD', value: 450000, user: { id: 'u2', name: 'Priya Kumar' } },
+    ],
+    budgets: [...budgets.map(b => ({ ...b, user: { id: 'u1', name: currentUser?.name || 'You' } }))],
+    accounts: [...accounts.map(ac => ({ ...ac, user: { id: 'u1', name: currentUser?.name || 'You' } }))],
+  };
+
+  const fetchFamilyGroup = useCallback(async () => {
+    if (!currentUser || currentUser.token.startsWith('demo-')) {
+      setFamilyGroup(DEMO_FAMILY_GROUP);
+      setFamilyData(DEMO_FAMILY_DATA);
+      return;
+    }
+    try {
+      const headers = { 'Content-Type': 'application/json', 'x-user-id': currentUser.token };
+      const res = await fetch(`${API_BASE}/family/me`, { headers });
+      if (res.ok) {
+        const group = await res.json();
+        setFamilyGroup(group);
+        localStorage.setItem('finance_os_family_group', JSON.stringify(group));
+        if (group) {
+          const dataRes = await fetch(`${API_BASE}/family/data`, { headers });
+          if (dataRes.ok) setFamilyData(await dataRes.json());
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch family group', err);
+    }
+  }, [currentUser]);
+
+  const handleCreateFamily = async () => {
+    if (!familyCreateName.trim()) return;
+    setFamilyLoading(true); setFamilyError('');
+    try {
+      if (!currentUser || currentUser.token.startsWith('demo-')) {
+        setFamilyGroup({ ...DEMO_FAMILY_GROUP, name: familyCreateName });
+        setFamilyData(DEMO_FAMILY_DATA);
+        showToast('Family group created! (Demo mode)', 'success');
+        return;
+      }
+      const headers = { 'Content-Type': 'application/json', 'x-user-id': currentUser.token };
+      const res = await fetch(`${API_BASE}/family/create`, {
+        method: 'POST', headers, body: JSON.stringify({ name: familyCreateName })
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.message); }
+      const group = await res.json();
+      setFamilyGroup(group);
+      localStorage.setItem('finance_os_family_group', JSON.stringify(group));
+      showToast('Family group created! Share your invite code.', 'success');
+      setFamilyCreateName('');
+    } catch (err: any) { setFamilyError(err.message); }
+    finally { setFamilyLoading(false); }
+  };
+
+  const handleJoinFamily = async () => {
+    if (!familyJoinCode.trim()) return;
+    setFamilyLoading(true); setFamilyError('');
+    try {
+      if (!currentUser || currentUser.token.startsWith('demo-')) {
+        setFamilyGroup(DEMO_FAMILY_GROUP);
+        setFamilyData(DEMO_FAMILY_DATA);
+        showToast('Joined family group! (Demo mode)', 'success');
+        return;
+      }
+      const headers = { 'Content-Type': 'application/json', 'x-user-id': currentUser.token };
+      const res = await fetch(`${API_BASE}/family/join`, {
+        method: 'POST', headers, body: JSON.stringify({ inviteCode: familyJoinCode.trim() })
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.message); }
+      const group = await res.json();
+      setFamilyGroup(group);
+      localStorage.setItem('finance_os_family_group', JSON.stringify(group));
+      showToast('Joined family group successfully!', 'success');
+      setFamilyJoinCode('');
+    } catch (err: any) { setFamilyError(err.message); }
+    finally { setFamilyLoading(false); }
+  };
+
+  const handleLeaveFamily = async () => {
+    setFamilyLoading(true); setFamilyError('');
+    try {
+      if (!currentUser || currentUser.token.startsWith('demo-')) {
+        setFamilyGroup(null); setFamilyData({ expenses: [], loans: [], investments: [], assets: [], budgets: [], accounts: [] });
+        localStorage.removeItem('finance_os_family_group');
+        showToast('Left family group. (Demo mode)', 'info');
+        return;
+      }
+      const headers = { 'Content-Type': 'application/json', 'x-user-id': currentUser.token };
+      await fetch(`${API_BASE}/family/leave`, { method: 'DELETE', headers });
+      setFamilyGroup(null); setFamilyData({ expenses: [], loans: [], investments: [], assets: [], budgets: [], accounts: [] });
+      localStorage.removeItem('finance_os_family_group');
+      showToast('Left the family group.', 'info');
+    } catch (err: any) { setFamilyError(err.message); }
+    finally { setFamilyLoading(false); }
+  };
+
+  const copyInviteCode = (code: string) => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    });
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
   // Search/Filter/Sort for Investments
   const [investmentSearch, setInvestmentSearch] = useState<string>('');
   const [investmentFilterType, setInvestmentFilterType] = useState<string>('ALL');
@@ -515,6 +666,11 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('finance_os_goals', JSON.stringify(goals));
   }, [goals]);
+
+  // Fetch family data when user logs in
+  useEffect(() => {
+    if (activeTab === 'family') fetchFamilyGroup();
+  }, [activeTab, currentUser]);
 
 
   // Recalculator: Ensure loan currentOutstandings reflect all standard payments applied to them
@@ -1622,6 +1778,24 @@ export default function App() {
                 >
                   <Calendar className="h-4 w-4" />
                   Due Calendar
+                </button>
+              </nav>
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase px-3">Family</h3>
+              <nav className="space-y-1">
+                <button
+                  onClick={() => setActiveTab('family')}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                    activeTab === 'family'
+                      ? 'bg-pink-500 text-white shadow-lg shadow-pink-500/20'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/40'
+                  }`}
+                >
+                  <Users className="h-4 w-4" />
+                  Family Account
+                  {familyGroup && <span className="ml-auto h-2 w-2 rounded-full bg-emerald-400" />}
                 </button>
               </nav>
             </div>
@@ -3110,6 +3284,389 @@ export default function App() {
             </div>
           )}
 
+          {/* TAB 9: FAMILY ACCOUNT */}
+          {activeTab === 'family' && (() => {
+            const memberColors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6'];
+            const getMemberColor = (idx: number) => memberColors[idx % memberColors.length];
+            const getMemberInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+            // ── Data merging: current user local state + backend data for others ──
+            const isDemo = currentUser?.token.startsWith('demo-');
+            const currentMember = familyGroup?.members?.find((m: any) => m.user?.email === currentUser?.email);
+            const currentUserId = currentMember?.userId;
+
+            const selfTag = (arr: any[]) => arr.map(item => ({
+              ...item,
+              userId: currentUserId || item.userId,
+              user: { id: currentUserId || '', name: currentUser?.name || 'You' },
+            }));
+
+            const selfData = currentUserId ? {
+              expenses: selfTag(expenses),
+              loans: selfTag(loans),
+              investments: selfTag(investments),
+              assets: selfTag(assets),
+              budgets: selfTag(budgets),
+            } : { expenses: [], loans: [], investments: [], assets: [], budgets: [] };
+
+            const backendData = isDemo ? DEMO_FAMILY_DATA : (familyData || { expenses: [], loans: [], investments: [], assets: [], budgets: [], accounts: [] });
+
+            const othersData = currentUserId ? {
+              expenses: (backendData.expenses || []).filter((e: any) => e.userId !== currentUserId),
+              loans: (backendData.loans || []).filter((l: any) => l.userId !== currentUserId),
+              investments: (backendData.investments || []).filter((i: any) => i.userId !== currentUserId),
+              assets: (backendData.assets || []).filter((a: any) => a.userId !== currentUserId),
+              budgets: (backendData.budgets || []).filter((b: any) => b.userId !== currentUserId),
+            } : backendData;
+
+            const activeFamilyData = familyGroup ? {
+              expenses: [...selfData.expenses, ...othersData.expenses].sort((a: any, b: any) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()),
+              loans: [...selfData.loans, ...othersData.loans],
+              investments: [...selfData.investments, ...othersData.investments],
+              assets: [...selfData.assets, ...othersData.assets],
+              budgets: [...selfData.budgets, ...othersData.budgets],
+            } : null;
+
+            // ── Aggregations ──
+            const activeLoans = activeFamilyData?.loans.filter((l: any) => l.status === 'ACTIVE') || [];
+            const familyTotalLoans = activeLoans.reduce((s: number, l: any) => s + (l.currentOutstanding || 0), 0);
+            const familyTotalAssets = (activeFamilyData?.assets || []).reduce((s: number, a: any) => s + (a.value || 0), 0);
+            const familyTotalInvestments = (activeFamilyData?.investments || []).reduce((s: number, i: any) => s + (i.currentValue || i.investedAmount || 0), 0);
+            const familyNetWorth = familyTotalAssets + familyTotalInvestments - familyTotalLoans;
+            const thisMonthStr = new Date().toISOString().slice(0, 7);
+            const familyMonthlyExpenses = (activeFamilyData?.expenses || [])
+              .filter((e: any) => (e.date || '').startsWith(thisMonthStr))
+              .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+
+            // Per-member breakdown
+            const memberSummaries = familyGroup?.members?.map((m: any, idx: number) => {
+              const uid = m.userId;
+              const mLoans = activeLoans.filter((l: any) => l.userId === uid);
+              const mInv = (activeFamilyData?.investments || []).filter((i: any) => i.userId === uid);
+              const mAssets = (activeFamilyData?.assets || []).filter((a: any) => a.userId === uid);
+              const mExpThisMonth = (activeFamilyData?.expenses || [])
+                .filter((e: any) => e.userId === uid && (e.date || '').startsWith(thisMonthStr));
+              return {
+                member: m,
+                idx,
+                color: getMemberColor(idx),
+                totalLoans: mLoans.reduce((s: number, l: any) => s + (l.currentOutstanding || 0), 0),
+                totalInvestments: mInv.reduce((s: number, i: any) => s + (i.currentValue || i.investedAmount || 0), 0),
+                totalAssets: mAssets.reduce((s: number, a: any) => s + (a.value || 0), 0),
+                monthlyExpenses: mExpThisMonth.reduce((s: number, e: any) => s + (e.amount || 0), 0),
+                loanCount: mLoans.length,
+              };
+            }) || [];
+
+            return (
+              <div className="space-y-6">
+                {/* ── HEADER ── */}
+                <div className="glass-card rounded-2xl p-6 relative overflow-hidden"
+                  style={{ background: 'linear-gradient(135deg, rgba(236,72,153,0.08) 0%, rgba(99,102,241,0.08) 100%)' }}>
+                  <div className="absolute top-0 right-0 w-64 h-64 opacity-5" style={{ background: 'radial-gradient(circle, #ec4899, transparent 70%)' }} />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+                    <div className="space-y-2">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-pink-500/10 text-pink-500 uppercase tracking-wider">Family Finance Hub</span>
+                      <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                        {familyGroup ? familyGroup.name : 'No Family Group Yet'}
+                      </h2>
+                      <div className="flex items-center gap-3">
+                        {familyGroup ? (
+                          <>
+                            {familyGroup.members?.slice(0, 4).map((m: any, idx: number) => (
+                              <div key={m.id} className="h-8 w-8 rounded-full flex items-center justify-center text-white text-[9px] font-bold shadow-md border-2 border-white dark:border-slate-900 -ml-2 first:ml-0"
+                                style={{ background: getMemberColor(idx) }}>
+                                {getMemberInitials(m.user?.name || 'U')}
+                              </div>
+                            ))}
+                            <span className="text-xs text-slate-500 ml-1">{familyGroup.members?.length} member{familyGroup.members?.length !== 1 ? 's' : ''} · Finances merged</span>
+                          </>
+                        ) : (
+                          <p className="text-sm text-slate-500">Create or join a group to share finances with your partner & family.</p>
+                        )}
+                      </div>
+                    </div>
+                    {familyGroup && (
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="text-right hidden sm:block">
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider">Invite Code</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="font-mono text-base font-black tracking-[0.25em] text-slate-800 dark:text-white">{familyGroup.inviteCode}</span>
+                            <button onClick={() => copyInviteCode(familyGroup.inviteCode)}
+                              className="h-7 w-7 rounded-lg bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center text-white transition shrink-0">
+                              {copiedCode ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+                          {copiedCode && <p className="text-[9px] text-emerald-500 font-bold mt-0.5">✓ Copied!</p>}
+                        </div>
+                        <button onClick={() => triggerConfirm('Leave Family Group', 'Are you sure you want to leave this family group?', handleLeaveFamily)}
+                          className="shrink-0 text-xs font-bold text-rose-500 border border-rose-500/30 hover:bg-rose-500/10 px-4 py-2 rounded-xl transition">
+                          Leave Group
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {!familyGroup ? (
+                  /* ── CREATE / JOIN PANEL ── */
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Create */}
+                    <div className="rounded-2xl p-6 space-y-4 relative overflow-hidden border border-pink-200/50 dark:border-pink-900/30"
+                      style={{ background: 'linear-gradient(135deg, rgba(236,72,153,0.06) 0%, rgba(244,63,94,0.06) 100%)' }}>
+                      <div className="absolute top-0 right-0 w-32 h-32 opacity-5" style={{ background: 'radial-gradient(circle, #ec4899, transparent)' }} />
+                      <div className="flex items-center gap-3 relative z-10">
+                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center shadow-lg shadow-pink-500/30">
+                          <Heart className="h-6 w-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-slate-800 dark:text-white">Create Family Group</h3>
+                          <p className="text-[11px] text-slate-400">Start a new shared family account</p>
+                        </div>
+                      </div>
+                      <div className="space-y-3 relative z-10">
+                        <input type="text" placeholder="e.g. Kumar Family, Sharma House"
+                          value={familyCreateName} onChange={e => setFamilyCreateName(e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-pink-500 outline-none" />
+                        {familyError && <p className="text-[11px] text-rose-400">{familyError}</p>}
+                        <button onClick={handleCreateFamily} disabled={familyLoading || !familyCreateName.trim()}
+                          className="w-full bg-gradient-to-r from-pink-500 to-rose-600 text-white text-sm font-bold py-3 rounded-xl hover:opacity-90 transition disabled:opacity-50 cursor-pointer shadow-lg shadow-pink-500/20">
+                          {familyLoading ? 'Creating…' : '✨ Create Family Group'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Join */}
+                    <div className="rounded-2xl p-6 space-y-4 relative overflow-hidden border border-indigo-200/50 dark:border-indigo-900/30"
+                      style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(139,92,246,0.06) 100%)' }}>
+                      <div className="absolute top-0 right-0 w-32 h-32 opacity-5" style={{ background: 'radial-gradient(circle, #6366f1, transparent)' }} />
+                      <div className="flex items-center gap-3 relative z-10">
+                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                          <UserPlus className="h-6 w-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-slate-800 dark:text-white">Join Family Group</h3>
+                          <p className="text-[11px] text-slate-400">Enter the 6-character invite code</p>
+                        </div>
+                      </div>
+                      <div className="space-y-3 relative z-10">
+                        <input type="text" placeholder="e.g. KUMAR1" maxLength={6}
+                          value={familyJoinCode} onChange={e => setFamilyJoinCode(e.target.value.toUpperCase())}
+                          className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-base font-mono font-black tracking-[0.5em] focus:ring-2 focus:ring-indigo-500 outline-none" />
+                        <button onClick={handleJoinFamily} disabled={familyLoading || familyJoinCode.length < 6}
+                          className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-bold py-3 rounded-xl hover:opacity-90 transition disabled:opacity-50 cursor-pointer shadow-lg shadow-indigo-500/20">
+                          {familyLoading ? 'Joining…' : '🔗 Join with Invite Code'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── GROUP DASHBOARD ── */
+                  <div className="space-y-6">
+
+                    {/* ── FAMILY NET WORTH BANNER ── */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      {[
+                        { label: 'Family Net Worth', value: formatCurrency(familyNetWorth), color: familyNetWorth >= 0 ? '#10b981' : '#f43f5e', bg: 'rgba(16,185,129,0.08)', icon: '💎' },
+                        { label: 'Total Debt', value: formatCurrency(familyTotalLoans), color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', icon: '🏦' },
+                        { label: 'This Month Spent', value: formatCurrency(familyMonthlyExpenses), color: '#ec4899', bg: 'rgba(236,72,153,0.08)', icon: '💸' },
+                        { label: 'Total Investments', value: formatCurrency(familyTotalInvestments), color: '#6366f1', bg: 'rgba(99,102,241,0.08)', icon: '📈' },
+                      ].map(({ label, value, color, bg, icon }) => (
+                        <div key={label} className="glass-card rounded-xl p-4 space-y-2" style={{ background: bg }}>
+                          <span className="text-xl">{icon}</span>
+                          <p className="text-base font-black" style={{ color }}>{value}</p>
+                          <p className="text-[10px] text-slate-400 leading-tight">{label}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* ── MEMBER CARDS ── */}
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Family Members</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {memberSummaries.map(({ member: m, idx, color, totalLoans, totalInvestments, totalAssets, monthlyExpenses, loanCount }: any) => (
+                          <div key={m.id} className="glass-card rounded-2xl p-5 space-y-4 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-10 -translate-y-6 translate-x-6" style={{ background: color }} />
+                            <div className="flex items-center gap-3 relative z-10">
+                              <div className="h-12 w-12 rounded-2xl flex items-center justify-center text-white text-sm font-black shadow-lg shrink-0"
+                                style={{ background: `linear-gradient(135deg, ${color}, ${color}aa)` }}>
+                                {getMemberInitials(m.user?.name || 'U')}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-black text-slate-800 dark:text-white truncate">{m.user?.name}</p>
+                                  {m.role === 'OWNER' && (
+                                    <span className="shrink-0 flex items-center gap-0.5 text-[8px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
+                                      <Crown className="h-2 w-2" /> Owner
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-slate-400 truncate">{m.user?.email}</p>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 relative z-10">
+                              <div className="rounded-xl p-2.5 bg-slate-50 dark:bg-slate-900/60">
+                                <p className="text-[9px] text-slate-400 uppercase tracking-wider">Monthly Spend</p>
+                                <p className="text-sm font-black text-rose-500">{formatCurrency(monthlyExpenses)}</p>
+                              </div>
+                              <div className="rounded-xl p-2.5 bg-slate-50 dark:bg-slate-900/60">
+                                <p className="text-[9px] text-slate-400 uppercase tracking-wider">Active Loans</p>
+                                <p className="text-sm font-black text-amber-500">{loanCount} · {formatCurrency(totalLoans)}</p>
+                              </div>
+                              <div className="rounded-xl p-2.5 bg-slate-50 dark:bg-slate-900/60">
+                                <p className="text-[9px] text-slate-400 uppercase tracking-wider">Investments</p>
+                                <p className="text-sm font-black text-indigo-500">{formatCurrency(totalInvestments)}</p>
+                              </div>
+                              <div className="rounded-xl p-2.5 bg-slate-50 dark:bg-slate-900/60">
+                                <p className="text-[9px] text-slate-400 uppercase tracking-wider">Assets</p>
+                                <p className="text-sm font-black text-emerald-500">{formatCurrency(totalAssets)}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* ── ALL FAMILY LOANS ── */}
+                    {activeLoans.length > 0 && (
+                      <div className="glass-card rounded-2xl p-5 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Family Loans</h3>
+                          <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full">{formatCurrency(familyTotalLoans)} total</span>
+                        </div>
+                        <div className="space-y-3">
+                          {activeLoans.map((loan: any, idx: number) => {
+                            const mIdx = familyGroup.members?.findIndex((m: any) => m.userId === loan.userId) ?? idx;
+                            const color = getMemberColor(Math.max(0, mIdx));
+                            const memberName = loan.user?.name || familyGroup.members?.[mIdx]?.user?.name || 'Member';
+                            const paidPct = loan.originalAmount > 0 ? Math.min(100, ((loan.originalAmount - loan.currentOutstanding) / loan.originalAmount) * 100) : 0;
+                            return (
+                              <div key={loan.id || idx} className="p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-6 w-6 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0" style={{ background: color }}>
+                                      {getMemberInitials(memberName)}
+                                    </div>
+                                    <div>
+                                      <p className="text-xs font-bold text-slate-800 dark:text-white">{loan.name}</p>
+                                      <p className="text-[9px] text-slate-400">{memberName} · {loan.lenderName || loan.bankName || '—'}</p>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-sm font-black text-amber-500">{formatCurrency(loan.currentOutstanding)}</p>
+                                    <p className="text-[9px] text-slate-400">{loan.interestRate}% p.a.</p>
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="flex justify-between text-[9px] text-slate-400">
+                                    <span>{paidPct.toFixed(0)}% paid off</span>
+                                    <span>EMI {formatCurrency(loan.emiAmount)}/mo</span>
+                                  </div>
+                                  <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                                    <div className="h-1.5 rounded-full transition-all duration-700" style={{ width: `${paidPct}%`, background: color }} />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── NET WORTH BREAKDOWN ── */}
+                    <div className="glass-card rounded-2xl p-5 space-y-4">
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Family Wealth Breakdown</h3>
+                      <div className="space-y-3">
+                        {[
+                          { label: 'Physical Assets', value: familyTotalAssets, color: '#10b981' },
+                          { label: 'Investments & SIP', value: familyTotalInvestments, color: '#6366f1' },
+                          { label: 'Total Debt', value: familyTotalLoans, color: '#f43f5e', negative: true },
+                        ].map(({ label, value, color, negative }) => {
+                          const absMax = Math.max(familyTotalAssets, familyTotalInvestments, familyTotalLoans, 1);
+                          return (
+                            <div key={label}>
+                              <div className="flex justify-between text-[10px] mb-1.5">
+                                <span className="font-semibold text-slate-700 dark:text-slate-300">{label}</span>
+                                <span className="font-black" style={{ color }}>{negative ? '-' : '+'}{formatCurrency(value)}</span>
+                              </div>
+                              <div className="h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                                <div className="h-2.5 rounded-full transition-all duration-700"
+                                  style={{ width: `${(value / absMax) * 100}%`, background: color }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                        <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Family Net Worth</span>
+                        <span className={`text-xl font-black ${familyNetWorth >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{formatCurrency(familyNetWorth)}</span>
+                      </div>
+                    </div>
+
+                    {/* ── SHARED EXPENSE TIMELINE ── */}
+                    <div className="glass-card rounded-2xl p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Shared Expense Timeline</h3>
+                        <span className="text-[10px] text-slate-400">{activeFamilyData?.expenses.length || 0} total transactions</span>
+                      </div>
+                      <div className="space-y-2 max-h-96 overflow-y-auto pr-1 custom-scroll">
+                        {(activeFamilyData?.expenses || []).slice(0, 40).map((exp: any, idx: number) => {
+                          const mIdx = familyGroup.members?.findIndex((m: any) => m.userId === exp.userId) ?? 0;
+                          const color = getMemberColor(Math.max(0, mIdx));
+                          const memberName = exp.user?.name || 'Member';
+                          return (
+                            <div key={exp.id || idx}
+                              className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/40 transition">
+                              <div className="h-9 w-9 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+                                style={{ background: color }}>
+                                {getMemberInitials(memberName)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-bold" style={{ color }}>{memberName}</span>
+                                  <span className="text-[9px] text-slate-400">·</span>
+                                  <span className="text-[10px] text-slate-500 truncate">{exp.category}</span>
+                                </div>
+                                <p className="text-[9px] text-slate-400 truncate">{exp.notes || exp.paymentMethod || '—'}</p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className="text-xs font-black text-rose-500">{formatCurrency(exp.amount)}</p>
+                                <p className="text-[9px] text-slate-400">
+                                  {exp.date ? new Date(exp.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {(!activeFamilyData?.expenses || activeFamilyData.expenses.length === 0) && (
+                          <div className="text-center py-10 text-slate-400">
+                            <Users className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                            <p className="text-xs">No shared expenses yet.</p>
+                            <p className="text-[10px]">Add expenses on the Expenses tab and they'll appear here.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* ── INVITE CODE (mobile) ── */}
+                    <div className="sm:hidden glass-card rounded-2xl p-5 flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Invite Code</p>
+                        <span className="font-mono text-lg font-black tracking-[0.3em] text-slate-800 dark:text-white">{familyGroup.inviteCode}</span>
+                        {copiedCode && <p className="text-[9px] text-emerald-500 font-bold">✓ Copied!</p>}
+                      </div>
+                      <button onClick={() => copyInviteCode(familyGroup.inviteCode)}
+                        className="h-10 w-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center text-white transition">
+                        {copiedCode ? <CheckCircle2 className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
+                      </button>
+                    </div>
+
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
         </main>
       </div>
 
@@ -4529,6 +5086,18 @@ export default function App() {
               >
                 <FileText className="h-5 w-5 text-emerald-500" />
                 <span>Financial Reports</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('family');
+                  setShowMoreSheet(false);
+                }}
+                className={`more-nav-item ${activeTab === 'family' ? 'active-nav' : ''}`}
+              >
+                <Users className="h-5 w-5 text-pink-500" />
+                <span>Family Account</span>
+                {familyGroup && <span className="ml-auto h-2 w-2 rounded-full bg-emerald-400" />}
               </button>
 
               <button

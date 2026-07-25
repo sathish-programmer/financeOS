@@ -61,24 +61,51 @@ enum PaymentMethod {
   CHEQUE
 }
 
+enum FamilyRole {
+  OWNER
+  MEMBER
+}
+
+model FamilyGroup {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  inviteCode  String         @unique
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  members     FamilyMember[]
+}
+
+model FamilyMember {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  role          FamilyRole  @default(MEMBER)
+  joinedAt      DateTime    @default(now())
+  userId        String      @db.ObjectId
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyGroupId String      @db.ObjectId
+  familyGroup   FamilyGroup @relation(fields: [familyGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, familyGroupId])
+}
+
 model User {
-  id           String        @id @default(auto()) @map("_id") @db.ObjectId
-  email        String        @unique
-  passwordHash String
-  name         String
-  role         Role          @default(USER)
-  currency     String        @default("INR")
-  language     String        @default("en")
-  theme        String        @default("dark")
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  loans        Loan[]
-  expenses     Expense[]
-  budgets      Budget[]
-  accounts     Account[]
-  investments  Investment[]
-  assets       Asset[]
-  notifications Notification[]
+  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  email             String         @unique
+  passwordHash      String
+  name              String
+  role              Role           @default(USER)
+  currency          String         @default("INR")
+  language          String         @default("en")
+  theme             String         @default("dark")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  loans             Loan[]
+  expenses          Expense[]
+  budgets           Budget[]
+  accounts          Account[]
+  investments       Investment[]
+  assets            Asset[]
+  notifications     Notification[]
+  familyMemberships FamilyMember[]
 }
 
 model Account {

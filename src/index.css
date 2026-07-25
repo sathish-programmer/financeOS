@@ -162,12 +162,18 @@ body {
   height: var(--bottom-nav-height);
   background: var(--card);
   border-top: 1px solid var(--border);
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: space-around;
   padding: 0 8px;
   padding-bottom: env(safe-area-inset-bottom, 0px);
   box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.08);
+}
+
+@media (max-width: 1023px) {
+  .mobile-bottom-nav {
+    display: flex;
+  }
 }
 
 .dark .mobile-bottom-nav {
