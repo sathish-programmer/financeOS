@@ -246,6 +246,25 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterType, setFilterType] = useState<string>('ALL');
 
+  // Extended Search/Filter/Pagination States
+  const [expenseSearch, setExpenseSearch] = useState<string>('');
+  const [expenseStartDate, setExpenseStartDate] = useState<string>('');
+  const [expenseEndDate, setExpenseEndDate] = useState<string>('');
+  const [expenseLimit, setExpenseLimit] = useState<number>(10);
+
+  const [familySearch, setFamilySearch] = useState<string>('');
+  const [familyStartDate, setFamilyStartDate] = useState<string>('');
+  const [familyEndDate, setFamilyEndDate] = useState<string>('');
+  const [familyLimit, setFamilyLimit] = useState<number>(10);
+
+  const [investmentStartDate, setInvestmentStartDate] = useState<string>('');
+  const [investmentEndDate, setInvestmentEndDate] = useState<string>('');
+  const [investmentLimit, setInvestmentLimit] = useState<number>(10);
+
+  const [loanStartDate, setLoanStartDate] = useState<string>('');
+  const [loanEndDate, setLoanEndDate] = useState<string>('');
+  const [loanLimit, setLoanLimit] = useState<number>(10);
+
   // Dialog State
   const [selectedLoanForSchedule, setSelectedLoanForSchedule] = useState<Loan | null>(null);
   const [showAddLoanModal, setShowAddLoanModal] = useState<boolean>(false);
@@ -1625,7 +1644,7 @@ export default function App() {
 
   // Dynamic recommendations & Alerts
   const advisor = generatePayoffRecommendations(loans, 15000, assets, investments);
-  const systemAlerts = generateSystemAlerts(loans, expenses, budgets, assets, incomes, totalBankBalance * 0.3);
+  const systemAlerts = generateSystemAlerts(loans, expenses, budgets, assets, incomes, totalBankBalance * 0.3, currency === 'INR' ? '₹' : '$');
 
   // Chart data: Debt breakdown
   const debtBreakdownData = loans.filter(l => l.currentOutstanding > 0).map(l => ({
@@ -2280,22 +2299,38 @@ export default function App() {
               </div>
 
               {/* SEARCH & FILTERS */}
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col md:flex-row gap-3">
                 <div className="relative flex-1">
                   <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
                     placeholder="Search by loan name, lender, account number..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none transition"
+                    onChange={(e) => { setSearchQuery(e.target.value); setLoanLimit(10); }}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none transition"
                   />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="date"
+                    value={loanStartDate}
+                    onChange={(e) => { setLoanStartDate(e.target.value); setLoanLimit(10); }}
+                    className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none font-sans"
+                    title="Start Date"
+                  />
+
+                  <input
+                    type="date"
+                    value={loanEndDate}
+                    onChange={(e) => { setLoanEndDate(e.target.value); setLoanLimit(10); }}
+                    className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none font-sans"
+                    title="End Date"
+                  />
+
                   <select
                     value={filterType}
-                    onChange={(e) => setFilterType(e.target.value)}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={(e) => { setFilterType(e.target.value); setLoanLimit(10); }}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="ALL">All Loan Types</option>
                     <option value="HOME_LOAN">Home Loan</option>
@@ -2309,99 +2344,127 @@ export default function App() {
               </div>
 
               {/* LOAN CARDS GRID */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {loans
-                  .filter(l => {
-                    const matchesSearch = (l.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || (l.lenderName?.toLowerCase() || '').includes(searchQuery.toLowerCase());
+              <div className="space-y-4">
+                {(() => {
+                  const filtered = loans.filter(l => {
+                    const matchesSearch = (l.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
+                      (l.lenderName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
+                      (l.loanNumber?.toLowerCase() || '').includes(searchQuery.toLowerCase());
                     const matchesFilter = filterType === 'ALL' || l.type === filterType;
-                    return matchesSearch && matchesFilter;
-                  })
-                  .map(loan => {
-                    const paydownPercent = ((Number(loan.originalAmount) - Number(loan.currentOutstanding)) / Number(loan.originalAmount)) * 100;
-                    
-                    return (
-                      <div key={loan.id} className="glass-card rounded-2xl p-5 border border-slate-200/40 dark:border-slate-900/40 relative flex flex-col justify-between h-[340px]">
-                        
-                        {/* CARD TOP HEADER */}
-                        <div>
-                          <div className="flex justify-between items-start">
-                            <span className="px-2 py-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold uppercase">
-                              {loan.type.replace('_', ' ')}
-                            </span>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              loan.priority === 'HIGH' ? 'bg-rose-500/10 text-rose-500' : 'bg-slate-500/10 text-slate-500'
-                            }`}>
-                              {loan.priority} Priority
-                            </span>
-                          </div>
+                    const matchesStart = !loanStartDate || new Date(l.startDate) >= new Date(loanStartDate);
+                    const matchesEnd = !loanEndDate || new Date(l.startDate) <= new Date(loanEndDate);
 
-                          <h3 className="text-sm font-bold mt-3 text-slate-900 dark:text-white">{loan.name}</h3>
-                          <span className="text-[10px] text-slate-400 block">{loan.lenderName} • {loan.loanNumber || 'No Acc Num'}</span>
+                    return matchesSearch && matchesFilter && matchesStart && matchesEnd;
+                  });
 
-                          <div className="grid grid-cols-2 gap-4 mt-4">
-                            <div>
-                              <span className="text-[9px] text-slate-400 block uppercase font-semibold">Outstanding</span>
-                              <span className="text-xs font-bold text-gradient-rose">
-                                {formatCurrency(loan.currentOutstanding)}
-                              </span>
+                  const visible = filtered.slice(0, loanLimit);
+
+                  return (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {visible.map(loan => {
+                          const paydownPercent = ((Number(loan.originalAmount) - Number(loan.currentOutstanding)) / Number(loan.originalAmount)) * 100;
+                          
+                          return (
+                            <div key={loan.id} className="glass-card rounded-2xl p-5 border border-slate-200/40 dark:border-slate-900/40 relative flex flex-col justify-between h-[340px]">
+                              
+                              {/* CARD TOP HEADER */}
+                              <div>
+                                <div className="flex justify-between items-start">
+                                  <span className="px-2 py-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold uppercase">
+                                    {loan.type.replace('_', ' ')}
+                                  </span>
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                    loan.priority === 'HIGH' ? 'bg-rose-500/10 text-rose-500' : 'bg-slate-500/10 text-slate-500'
+                                  }`}>
+                                    {loan.priority} Priority
+                                  </span>
+                                </div>
+
+                                <h3 className="text-sm font-bold mt-3 text-slate-900 dark:text-white">{loan.name}</h3>
+                                <span className="text-[10px] text-slate-400 block">{loan.lenderName} • {loan.loanNumber || 'No Acc Num'}</span>
+
+                                <div className="grid grid-cols-2 gap-4 mt-4">
+                                  <div>
+                                    <span className="text-[9px] text-slate-400 block uppercase font-semibold">Outstanding</span>
+                                    <span className="text-xs font-bold text-gradient-rose">
+                                      {formatCurrency(loan.currentOutstanding)}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[9px] text-slate-400 block uppercase font-semibold">Original Loan</span>
+                                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 font-sans">
+                                      {formatCurrency(loan.originalAmount)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* MIDDLE paydown progress bar */}
+                              <div className="my-4">
+                                <div className="flex justify-between text-[9px] text-slate-400 mb-1">
+                                  <span>Payoff Progress</span>
+                                  <span className="font-bold text-slate-700 dark:text-slate-300">{paydownPercent.toFixed(1)}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                  <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-500" style={{ width: `${paydownPercent}%` }}></div>
+                                </div>
+                              </div>
+
+                              {/* BOTTOM STATS & DETAILS BUTTON */}
+                              <div>
+                                <div className="grid grid-cols-3 gap-2 border-t border-slate-200/50 dark:border-slate-800/40 pt-3 text-center">
+                                  <div>
+                                    <span className="text-[8px] text-slate-400 block uppercase">EMI</span>
+                                    <span className="text-[10px] font-bold font-sans">{formatCurrency(loan.emi)}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[8px] text-slate-400 block uppercase">Rate</span>
+                                    <span className="text-[10px] font-bold">{loan.interestRate}%</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[8px] text-slate-400 block uppercase">Tenure</span>
+                                    <span className="text-[10px] font-bold">{loan.tenureMonths} mo</span>
+                                  </div>
+                                </div>
+
+                                <div className="mt-4 flex gap-2">
+                                  <button
+                                    onClick={() => setSelectedLoanForSchedule(loan)}
+                                    className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-[10px] font-bold py-2 rounded-lg text-center cursor-pointer transition"
+                                  >
+                                    Amortization Schedule
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteLoan(loan.id)}
+                                    className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 rounded-lg transition cursor-pointer"
+                                    title="Delete Loan"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
                             </div>
-                            <div>
-                              <span className="text-[9px] text-slate-400 block uppercase font-semibold">Original Loan</span>
-                              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                                {formatCurrency(loan.originalAmount)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* MIDDLE paydown progress bar */}
-                        <div className="my-4">
-                          <div className="flex justify-between text-[9px] text-slate-400 mb-1">
-                            <span>Payoff Progress</span>
-                            <span className="font-bold text-slate-700 dark:text-slate-300">{paydownPercent.toFixed(1)}%</span>
-                          </div>
-                          <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-                            <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-500" style={{ width: `${paydownPercent}%` }}></div>
-                          </div>
-                        </div>
-
-                        {/* BOTTOM STATS & DETAILS BUTTON */}
-                        <div>
-                          <div className="grid grid-cols-3 gap-2 border-t border-slate-200/50 dark:border-slate-800/40 pt-3 text-center">
-                            <div>
-                              <span className="text-[8px] text-slate-400 block uppercase">EMI</span>
-                              <span className="text-[10px] font-bold">{formatCurrency(loan.emi)}</span>
-                            </div>
-                            <div>
-                              <span className="text-[8px] text-slate-400 block uppercase">Rate</span>
-                              <span className="text-[10px] font-bold">{loan.interestRate}%</span>
-                            </div>
-                            <div>
-                              <span className="text-[8px] text-slate-400 block uppercase">Tenure</span>
-                              <span className="text-[10px] font-bold">{loan.tenureMonths} mo</span>
-                            </div>
-                          </div>
-
-                          <div className="mt-4 flex gap-2">
-                            <button
-                              onClick={() => setSelectedLoanForSchedule(loan)}
-                              className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-[10px] font-bold py-2 rounded-lg text-center cursor-pointer transition"
-                            >
-                              Amortization Schedule
-                            </button>
-                            <button
-                              onClick={() => handleDeleteLoan(loan.id)}
-                              className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 rounded-lg transition cursor-pointer"
-                              title="Delete Loan"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+
+                      {filtered.length === 0 && (
+                        <p className="text-xs text-slate-400 py-10 text-center">No matching loans found.</p>
+                      )}
+
+                      {filtered.length > loanLimit && (
+                        <button
+                          onClick={() => setLoanLimit(prev => prev + 6)}
+                          className="w-full text-center py-2.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900/10 cursor-pointer"
+                        >
+                          Load More ({filtered.length - loanLimit} remaining)
+                        </button>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
             </div>
@@ -2691,45 +2754,112 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* EXPENSE LEDGER */}
                 <div className="glass-card rounded-2xl p-5 space-y-4">
-                  <h3 className="text-sm font-bold">Transaction History (Expenses)</h3>
-                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-                    {[...expenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((e, idx) => (
-                      <div key={e.id || idx} className="p-3 rounded-xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
-                        <div>
-                          <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{e.category}</span>
-                          <span className="text-[9px] text-slate-400">{formatDate(e.date)} • {e.paymentMethod}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs font-bold text-rose-500">-{formatCurrency(e.amount || 0)}</span>
-                          <button
-                            onClick={() => {
-                              setEditingExpense(e);
-                              setSelectedExpenseCategory(e.category);
-                              setNewExpense({
-                                date: e.date,
-                                category: e.category,
-                                amount: e.amount,
-                                paymentMethod: e.paymentMethod,
-                                notes: e.notes,
-                                recurring: e.recurring
-                              });
-                              setShowAddExpenseModal(true);
-                            }}
-                            className="text-slate-400 hover:text-blue-500 transition cursor-pointer"
-                            title="Edit Expense"
-                          >
-                            <Edit className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteExpense(e.id)}
-                            className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
-                            title="Delete Expense"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-3">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-white">Transaction History (Expenses)</h3>
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase">{expenses.length} transactions</span>
+                  </div>
+
+                  {/* Filter controls */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search notes or category..."
+                        value={expenseSearch}
+                        onChange={e => { setExpenseSearch(e.target.value); setExpenseLimit(10); }}
+                        className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-300"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="date"
+                        value={expenseStartDate}
+                        onChange={e => { setExpenseStartDate(e.target.value); setExpenseLimit(10); }}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] outline-none focus:ring-1 focus:ring-blue-500 text-slate-500 dark:text-slate-400 font-sans"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="date"
+                        value={expenseEndDate}
+                        onChange={e => { setExpenseEndDate(e.target.value); setExpenseLimit(10); }}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] outline-none focus:ring-1 focus:ring-blue-500 text-slate-500 dark:text-slate-400 font-sans"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 custom-scroll">
+                    {(() => {
+                      const filtered = expenses.filter(e => {
+                        const matchesSearch = (e.category?.toLowerCase() || '').includes(expenseSearch.toLowerCase()) ||
+                          (e.notes?.toLowerCase() || '').includes(expenseSearch.toLowerCase()) ||
+                          (e.paymentMethod?.toLowerCase() || '').includes(expenseSearch.toLowerCase());
+                        
+                        const matchesStart = !expenseStartDate || new Date(e.date) >= new Date(expenseStartDate);
+                        const matchesEnd = !expenseEndDate || new Date(e.date) <= new Date(expenseEndDate);
+
+                        return matchesSearch && matchesStart && matchesEnd;
+                      }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                      const visible = filtered.slice(0, expenseLimit);
+
+                      return (
+                        <>
+                          {visible.map((e, idx) => (
+                            <div key={e.id || idx} className="p-3 rounded-xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center">
+                              <div>
+                                <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">{e.category}</span>
+                                <span className="text-[9px] text-slate-400">{formatDate(e.date)} • {e.paymentMethod}</span>
+                                {e.notes && <p className="text-[9px] text-slate-500 italic mt-0.5 truncate max-w-[150px] sm:max-w-none">{e.notes}</p>}
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs font-bold text-rose-500">-{formatCurrency(e.amount || 0)}</span>
+                                <button
+                                  onClick={() => {
+                                    setEditingExpense(e);
+                                    setSelectedExpenseCategory(e.category);
+                                    setNewExpense({
+                                      date: e.date,
+                                      category: e.category,
+                                      amount: e.amount,
+                                      paymentMethod: e.paymentMethod,
+                                      notes: e.notes,
+                                      recurring: e.recurring
+                                    });
+                                    setShowAddExpenseModal(true);
+                                  }}
+                                  className="text-slate-400 hover:text-blue-500 transition cursor-pointer"
+                                  title="Edit Expense"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteExpense(e.id)}
+                                  className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                                  title="Delete Expense"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+
+                          {filtered.length === 0 && (
+                            <p className="text-xs text-slate-400 py-6 text-center">No matching expenses found.</p>
+                          )}
+
+                          {filtered.length > expenseLimit && (
+                            <button
+                              onClick={() => setExpenseLimit(prev => prev + 10)}
+                              className="w-full text-center py-2 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900/10 cursor-pointer"
+                            >
+                              Load More ({filtered.length - expenseLimit} remaining)
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -2836,7 +2966,9 @@ export default function App() {
                 const matchesSearch = inv.name.toLowerCase().includes(investmentSearch.toLowerCase()) ||
                   (inv.notes && inv.notes.toLowerCase().includes(investmentSearch.toLowerCase()));
                 const matchesFilter = investmentFilterType === 'ALL' || inv.type === investmentFilterType;
-                return matchesSearch && matchesFilter;
+                const matchesStart = !investmentStartDate || new Date(inv.date || '') >= new Date(investmentStartDate);
+                const matchesEnd = !investmentEndDate || new Date(inv.date || '') <= new Date(investmentEndDate);
+                return matchesSearch && matchesFilter && matchesStart && matchesEnd;
               })
               .sort((a, b) => {
                 if (investmentSortBy === 'DATE_DESC') {
@@ -3088,13 +3220,29 @@ export default function App() {
                         type="text"
                         placeholder="Search ledger..."
                         value={investmentSearch}
-                        onChange={(e) => setInvestmentSearch(e.target.value)}
+                        onChange={(e) => { setInvestmentSearch(e.target.value); setInvestmentLimit(10); }}
                         className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs focus:ring-1 focus:ring-blue-500 outline-none w-full md:w-40"
+                      />
+
+                      <input
+                        type="date"
+                        value={investmentStartDate}
+                        onChange={(e) => { setInvestmentStartDate(e.target.value); setInvestmentLimit(10); }}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs focus:ring-1 focus:ring-blue-500 outline-none font-sans"
+                        title="Start Date"
+                      />
+
+                      <input
+                        type="date"
+                        value={investmentEndDate}
+                        onChange={(e) => { setInvestmentEndDate(e.target.value); setInvestmentLimit(10); }}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs focus:ring-1 focus:ring-blue-500 outline-none font-sans"
+                        title="End Date"
                       />
 
                       <select
                         value={investmentFilterType}
-                        onChange={(e) => setInvestmentFilterType(e.target.value)}
+                        onChange={(e) => { setInvestmentFilterType(e.target.value); setInvestmentLimit(10); }}
                         className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs outline-none"
                       >
                         <option value="ALL">All Types</option>
@@ -3131,49 +3279,60 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {sortedAndFilteredInvestments.length > 0 ? (
-                      sortedAndFilteredInvestments.map(inv => {
-                        const gain = inv.currentValue - inv.investedValue;
-                        const pct = inv.investedValue > 0 ? (gain / inv.investedValue) * 100 : 0;
-                        return (
-                          <div key={inv.id} className="p-4 rounded-2xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center relative overflow-hidden">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-bold text-slate-850 dark:text-slate-200">{inv.name}</span>
-                                {inv.isSIP && (
-                                  <span className="text-[8px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-extrabold px-1.5 py-0.5 rounded">SIP</span>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {sortedAndFilteredInvestments.length > 0 ? (
+                        sortedAndFilteredInvestments.slice(0, investmentLimit).map(inv => {
+                          const gain = inv.currentValue - inv.investedValue;
+                          const pct = inv.investedValue > 0 ? (gain / inv.investedValue) * 100 : 0;
+                          return (
+                            <div key={inv.id} className="p-4 rounded-2xl bg-slate-100/40 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-900/40 flex justify-between items-center relative overflow-hidden">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-bold text-slate-850 dark:text-slate-200">{inv.name}</span>
+                                  {inv.isSIP && (
+                                    <span className="text-[8px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-extrabold px-1.5 py-0.5 rounded">SIP</span>
+                                  )}
+                                </div>
+                                <div className="text-[9px] text-slate-400 space-x-2">
+                                  <span>{inv.type.replace('_', ' ')}</span>
+                                  <span>•</span>
+                                  <span>{inv.date ? formatDate(inv.date) : 'No Date'}</span>
+                                </div>
+                                {inv.notes && (
+                                  <p className="text-[9px] text-slate-450 italic max-w-[200px] truncate">"{inv.notes}"</p>
                                 )}
                               </div>
-                              <div className="text-[9px] text-slate-400 space-x-2">
-                                <span>{inv.type.replace('_', ' ')}</span>
-                                <span>•</span>
-                                <span>{inv.date ? formatDate(inv.date) : 'No Date'}</span>
+                              <div className="flex items-center gap-3">
+                                <div className="text-right">
+                                  <span className="text-xs font-bold block">{formatCurrency(inv.currentValue || 0)}</span>
+                                  <span className={`text-[10px] font-bold ${gain >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                    {gain >= 0 ? '+' : ''}{pct.toFixed(1)}% ({formatCurrency(gain)})
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => handleDeleteInvestment(inv.id)}
+                                  className="text-slate-400 hover:text-rose-500 transition cursor-pointer p-1"
+                                  title="Delete Investment"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
                               </div>
-                              {inv.notes && (
-                                <p className="text-[9px] text-slate-450 italic max-w-[200px] truncate">"{inv.notes}"</p>
-                              )}
                             </div>
-                            <div className="flex items-center gap-3">
-                              <div className="text-right">
-                                <span className="text-xs font-bold block">{formatCurrency(inv.currentValue || 0)}</span>
-                                <span className={`text-[10px] font-bold ${gain >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                  {gain >= 0 ? '+' : ''}{pct.toFixed(1)}% ({formatCurrency(gain)})
-                                </span>
-                              </div>
-                              <button
-                                onClick={() => handleDeleteInvestment(inv.id)}
-                                className="text-slate-400 hover:text-rose-500 transition cursor-pointer p-1"
-                                title="Delete Investment"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="col-span-2 text-center py-8 text-xs text-slate-450">No matches found for search or filters.</div>
+                          );
+                        })
+                      ) : (
+                        <div className="col-span-2 text-center py-8 text-xs text-slate-450">No matches found for search or filters.</div>
+                      )}
+                    </div>
+
+                    {sortedAndFilteredInvestments.length > investmentLimit && (
+                      <button
+                        onClick={() => setInvestmentLimit(prev => prev + 10)}
+                        className="w-full text-center py-2.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900/10 cursor-pointer"
+                      >
+                        Load More ({sortedAndFilteredInvestments.length - investmentLimit} remaining)
+                      </button>
                     )}
                   </div>
                 </div>
@@ -3940,46 +4099,107 @@ export default function App() {
 
                     {/* ── SHARED EXPENSE TIMELINE ── */}
                     <div className="glass-card rounded-2xl p-5 space-y-4">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3">
                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Shared Expense Timeline</h3>
-                        <span className="text-[10px] text-slate-400">{activeFamilyData?.expenses.length || 0} total transactions</span>
+                        <span className="text-[10px] text-slate-400">{(activeFamilyData?.expenses || []).length} total transactions</span>
                       </div>
+
+                      {/* Filter controls */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                          <input
+                            type="text"
+                            placeholder="Search notes, category, member..."
+                            value={familySearch}
+                            onChange={e => { setFamilySearch(e.target.value); setFamilyLimit(10); }}
+                            className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] outline-none focus:ring-1 focus:ring-pink-500 text-slate-700 dark:text-slate-300"
+                          />
+                        </div>
+                        <div>
+                          <input
+                            type="date"
+                            value={familyStartDate}
+                            onChange={e => { setFamilyStartDate(e.target.value); setFamilyLimit(10); }}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] outline-none focus:ring-1 focus:ring-pink-500 text-slate-500 dark:text-slate-400 font-sans"
+                          />
+                        </div>
+                        <div>
+                          <input
+                            type="date"
+                            value={familyEndDate}
+                            onChange={e => { setFamilyEndDate(e.target.value); setFamilyLimit(10); }}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] outline-none focus:ring-1 focus:ring-pink-500 text-slate-500 dark:text-slate-400 font-sans"
+                          />
+                        </div>
+                      </div>
+
                       <div className="space-y-2 max-h-96 overflow-y-auto pr-1 custom-scroll">
-                        {(activeFamilyData?.expenses || []).slice(0, 40).map((exp: any, idx: number) => {
-                          const mIdx = familyGroup.members?.findIndex((m: any) => m.userId === exp.userId) ?? 0;
-                          const color = getMemberColor(Math.max(0, mIdx));
-                          const memberName = exp.user?.name || 'Member';
+                        {(() => {
+                          const filtered = (activeFamilyData?.expenses || []).filter((exp: any) => {
+                            const memberName = exp.user?.name || 'Member';
+                            const matchesSearch = (exp.category?.toLowerCase() || '').includes(familySearch.toLowerCase()) ||
+                              (exp.notes?.toLowerCase() || '').includes(familySearch.toLowerCase()) ||
+                              (exp.paymentMethod?.toLowerCase() || '').includes(familySearch.toLowerCase()) ||
+                              (memberName.toLowerCase()).includes(familySearch.toLowerCase());
+                            
+                            const matchesStart = !familyStartDate || new Date(exp.date) >= new Date(familyStartDate);
+                            const matchesEnd = !familyEndDate || new Date(exp.date) <= new Date(familyEndDate);
+
+                            return matchesSearch && matchesStart && matchesEnd;
+                          }).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                          const visible = filtered.slice(0, familyLimit);
+
                           return (
-                            <div key={exp.id || idx}
-                              className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/40 transition">
-                              <div className="h-9 w-9 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0"
-                                style={{ background: color }}>
-                                {getMemberInitials(memberName)}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-bold" style={{ color }}>{memberName}</span>
-                                  <span className="text-[9px] text-slate-400">·</span>
-                                  <span className="text-[10px] text-slate-500 truncate">{exp.category}</span>
+                            <>
+                              {visible.map((exp: any, idx: number) => {
+                                const mIdx = familyGroup.members?.findIndex((m: any) => m.userId === exp.userId) ?? 0;
+                                const color = getMemberColor(Math.max(0, mIdx));
+                                const memberName = exp.user?.name || 'Member';
+                                return (
+                                  <div key={exp.id || idx}
+                                    className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/40 transition">
+                                    <div className="h-9 w-9 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+                                      style={{ background: color }}>
+                                      {getMemberInitials(memberName)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-[10px] font-bold" style={{ color }}>{memberName}</span>
+                                        <span className="text-[9px] text-slate-400">·</span>
+                                        <span className="text-[10px] text-slate-500 truncate">{exp.category}</span>
+                                      </div>
+                                      <p className="text-[9px] text-slate-400 truncate">{exp.notes || exp.paymentMethod || '—'}</p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <p className="text-xs font-black text-rose-500">{formatCurrency(exp.amount)}</p>
+                                      <p className="text-[9px] text-slate-400 font-sans">
+                                        {exp.date ? new Date(exp.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              {filtered.length === 0 && (
+                                <div className="text-center py-10 text-slate-400">
+                                  <Users className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                                  <p className="text-xs">No matching shared expenses found.</p>
                                 </div>
-                                <p className="text-[9px] text-slate-400 truncate">{exp.notes || exp.paymentMethod || '—'}</p>
-                              </div>
-                              <div className="text-right shrink-0">
-                                <p className="text-xs font-black text-rose-500">{formatCurrency(exp.amount)}</p>
-                                <p className="text-[9px] text-slate-400">
-                                  {exp.date ? new Date(exp.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
-                                </p>
-                              </div>
-                            </div>
+                              )}
+
+                              {filtered.length > familyLimit && (
+                                <button
+                                  onClick={() => setFamilyLimit(prev => prev + 10)}
+                                  className="w-full text-center py-2 text-xs font-bold text-pink-600 dark:text-pink-400 hover:underline border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900/10 cursor-pointer"
+                                >
+                                  Load More ({filtered.length - familyLimit} remaining)
+                                </button>
+                              )}
+                            </>
                           );
-                        })}
-                        {(!activeFamilyData?.expenses || activeFamilyData.expenses.length === 0) && (
-                          <div className="text-center py-10 text-slate-400">
-                            <Users className="h-10 w-10 mx-auto mb-2 opacity-30" />
-                            <p className="text-xs">No shared expenses yet.</p>
-                            <p className="text-[10px]">Add expenses on the Expenses tab and they'll appear here.</p>
-                          </div>
-                        )}
+                        })()}
                       </div>
                     </div>
 

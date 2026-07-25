@@ -253,16 +253,14 @@ export function generatePayoffRecommendations(
   };
 }
 
-/**
- * Calculates budget alerts, credit card limits, and net worth checks.
- */
 export function generateSystemAlerts(
   loans: Loan[],
   expenses: Expense[],
   budgets: Budget[],
   assets: Asset[],
   incomes: Income[],
-  emergencyFund: number
+  emergencyFund: number,
+  currencySymbol: string = '$'
 ): Alert[] {
   const alerts: Alert[] = [];
   const nowStr = new Date().toISOString().split('T')[0];
@@ -278,7 +276,7 @@ export function generateSystemAlerts(
           id: `cc-util-${cc.id}`,
           type: 'CREDIT_CARD_LIMIT',
           title: 'High Credit Card Utilization',
-          message: `Your credit card "${cc.name}" utilization is at ${util.toFixed(1)}% (Limit: $${limit}, Outstanding: $${outstanding}), exceeding the recommended 30% limit.`,
+          message: `Your credit card "${cc.name}" utilization is at ${util.toFixed(1)}% (Limit: ${currencySymbol}${limit.toLocaleString()}, Outstanding: ${currencySymbol}${outstanding.toLocaleString()}), exceeding the recommended 30% limit.`,
           severity: util > 75 ? 'critical' : 'warning',
           date: nowStr,
         });
@@ -305,7 +303,7 @@ export function generateSystemAlerts(
         id: `budget-exceeded-${b.id}`,
         type: 'BUDGET_EXCEEDED',
         title: 'Budget Limit Exceeded',
-        message: `You spent $${spent.toFixed(2)} on "${b.category}", exceeding your budget of $${limit.toFixed(2)} by $${(spent - limit).toFixed(2)}.`,
+        message: `You spent ${currencySymbol}${spent.toLocaleString()} on "${b.category}", exceeding your budget of ${currencySymbol}${limit.toLocaleString()} by ${currencySymbol}${(spent - limit).toLocaleString()}.`,
         severity: 'critical',
         date: nowStr,
       });
@@ -314,7 +312,7 @@ export function generateSystemAlerts(
         id: `budget-warning-${b.id}`,
         type: 'BUDGET_EXCEEDED',
         title: 'Approaching Budget Limit',
-        message: `You spent $${spent.toFixed(2)} on "${b.category}" which is ${((spent / limit) * 100).toFixed(0)}% of your $${limit.toFixed(2)} budget.`,
+        message: `You spent ${currencySymbol}${spent.toLocaleString()} on "${b.category}" which is ${((spent / limit) * 100).toFixed(0)}% of your ${currencySymbol}${limit.toLocaleString()} budget.`,
         severity: 'warning',
         date: nowStr,
       });
@@ -328,7 +326,7 @@ export function generateSystemAlerts(
       id: 'emergency-fund-low',
       type: 'LOW_EMERGENCY_FUND',
       title: 'Low Emergency Fund',
-      message: `Your emergency savings of $${emergencyFund.toFixed(0)} are lower than 3 months of expenses ($${(totalMonthlyExpenses * 3).toFixed(0)}). We recommend saving more cash.`,
+      message: `Your emergency savings of ${currencySymbol}${emergencyFund.toLocaleString()} are lower than 3 months of expenses (${currencySymbol}${(totalMonthlyExpenses * 3).toLocaleString()}). We recommend saving more cash.`,
       severity: 'warning',
       date: nowStr,
     });
@@ -371,7 +369,7 @@ export function generateSystemAlerts(
         id: 'dti-high',
         type: 'HIGH_DEBT_RATIO',
         title: 'High Debt-to-Income Ratio',
-        message: `Your Debt-to-Income (DTI) ratio is ${dtiRatio.toFixed(1)}% (Monthly EMIs: $${totalMonthlyEmis.toFixed(0)}, Monthly Income: $${totalIncome.toFixed(0)}). A safe ratio is below 35%.`,
+        message: `Your Debt-to-Income (DTI) ratio is ${dtiRatio.toFixed(1)}% (Monthly EMIs: ${currencySymbol}${totalMonthlyEmis.toLocaleString()}, Monthly Income: ${currencySymbol}${totalIncome.toLocaleString()}). A safe ratio is below 35%.`,
         severity: dtiRatio > 50 ? 'critical' : 'warning',
         date: nowStr,
       });
@@ -390,7 +388,7 @@ export function generateSystemAlerts(
         id: `lent-overdue-${lent.id}`,
         type: 'EMI_DUE',
         title: 'Receivable Balance Alert',
-        message: `Your friend/family member "${lent.borrowerName || lent.name}" was expected to return ${Number(lent.currentOutstanding).toLocaleString()} on ${lent.endDate.toString().split('T')[0]}. This is now ${daysOverdue} days overdue!`,
+        message: `Your friend/family member "${lent.borrowerName || lent.name}" was expected to return ${currencySymbol}${Number(lent.currentOutstanding).toLocaleString()} on ${lent.endDate.toString().split('T')[0]}. This is now ${daysOverdue} days overdue!`,
         severity: 'critical',
         date: nowStr,
       });
