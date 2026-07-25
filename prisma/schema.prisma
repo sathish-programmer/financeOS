@@ -9,7 +9,7 @@ generator client {
 
 generator backendClient {
   provider = "prisma-client-js"
-  output   = "../backend/node_modules/@prisma/client"
+  output   = "../backend/node_modules/.prisma/client"
 }
 
 enum Role {
