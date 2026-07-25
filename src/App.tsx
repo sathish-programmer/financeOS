@@ -284,6 +284,7 @@ export default function App() {
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
 
   // Modern Toast & Confirm Dialog State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -630,12 +631,14 @@ export default function App() {
       };
 
       try {
-        const [resAcc, resLoans, resPay, resExp, resBudg] = await Promise.all([
+        const [resAcc, resLoans, resPay, resExp, resBudg, resAssets, resInvestments] = await Promise.all([
           fetch(`${API_BASE}/finance/accounts`, { headers }),
           fetch(`${API_BASE}/finance/loans`, { headers }),
           fetch(`${API_BASE}/finance/payments`, { headers }),
           fetch(`${API_BASE}/finance/expenses`, { headers }),
-          fetch(`${API_BASE}/finance/budgets`, { headers })
+          fetch(`${API_BASE}/finance/budgets`, { headers }),
+          fetch(`${API_BASE}/finance/assets`, { headers }),
+          fetch(`${API_BASE}/finance/investments`, { headers })
         ]);
 
         if (resAcc.ok) setAccounts(await resAcc.json());
@@ -643,6 +646,8 @@ export default function App() {
         if (resPay.ok) setPayments(await resPay.json());
         if (resExp.ok) setExpenses(await resExp.json());
         if (resBudg.ok) setBudgets(await resBudg.json());
+        if (resAssets.ok) setAssets(await resAssets.json());
+        if (resInvestments.ok) setInvestments(await resInvestments.json());
       } catch (err) {
         console.error("Failed to sync dynamically from MongoDB backend:", err);
       }
@@ -871,14 +876,13 @@ export default function App() {
     start.setMonth(start.getMonth() + Number(newLoan.tenureMonths || 12));
     const calculatedEndDate = start.toISOString().split('T')[0];
 
-    const loanToAdd: Loan = {
-      id: `loan-${Date.now()}`,
+    const loanData = {
       name: newLoan.type === 'OTHER' && customLoanType ? `${newLoan.name} (${customLoanType})` : newLoan.name,
       type: newLoan.type as LoanType,
       lenderName: newLoan.lenderName,
       loanNumber: newLoan.loanNumber,
       originalAmount: Number(newLoan.originalAmount),
-      currentOutstanding: Number(newLoan.originalAmount),
+      currentOutstanding: Number(newLoan.currentOutstanding || newLoan.originalAmount),
       interestRate: Number(newLoan.interestRate || 10),
       interestType: (newLoan.interestType || 'FIXED') as InterestType,
       tenureMonths: Number(newLoan.tenureMonths || 12),
@@ -890,13 +894,66 @@ export default function App() {
       lateFee: Number(newLoan.lateFee || 0),
       prepaymentCharges: Number(newLoan.prepaymentCharges || 0),
       priority: (newLoan.priority || 'MEDIUM') as Priority,
-      status: 'ACTIVE',
-      // Gold parameters if selected
       goldRenewalDate: newLoan.type === 'GOLD_LOAN' ? new Date(start.getTime() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : undefined,
       goldPenaltyRate: newLoan.type === 'GOLD_LOAN' ? 2 : undefined,
       creditLimit: newLoan.type === 'CREDIT_CARD' ? Number(newLoan.originalAmount) : undefined,
       minDue: newLoan.type === 'CREDIT_CARD' ? Number(newLoan.emi) : undefined,
       borrowerName: newLoan.type === 'FRIEND_LOAN' || newLoan.type === 'FAMILY_LOAN' ? newLoan.borrowerName : undefined
+    };
+
+    if (editingLoan) {
+      if (currentUser && !currentUser.token.startsWith('demo-')) {
+        fetch(`${API_BASE}/finance/loans/${editingLoan.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.token
+          },
+          body: JSON.stringify(loanData)
+        })
+        .then(res => res.json())
+        .then(updatedLoan => {
+          setLoans(loans.map(l => l.id === editingLoan.id ? updatedLoan : l));
+          showToast("Loan updated successfully!");
+        })
+        .catch(err => {
+          console.error(err);
+          showToast("Failed to update loan", "error");
+        });
+      } else {
+        setLoans(loans.map(l => l.id === editingLoan.id ? { ...l, ...loanData } : l));
+        showToast("Loan updated successfully!");
+      }
+
+      setEditingLoan(null);
+      setShowAddLoanModal(false);
+      setCustomLoanType('');
+      setNewLoan({
+        name: '',
+        type: 'PERSONAL_LOAN',
+        lenderName: '',
+        loanNumber: '',
+        originalAmount: 0,
+        currentOutstanding: 0,
+        interestRate: 10,
+        interestType: 'FIXED',
+        tenureMonths: 12,
+        emi: 0,
+        startDate: new Date().toISOString().split('T')[0],
+        processingFee: 0,
+        insurance: 0,
+        lateFee: 0,
+        prepaymentCharges: 0,
+        priority: 'MEDIUM',
+        borrowerName: ''
+      });
+      return;
+    }
+
+    const loanToAdd: Loan = {
+      id: `loan-${Date.now()}`,
+      ...loanData,
+      status: 'ACTIVE'
     };
 
     if (currentUser && !currentUser.token.startsWith('demo-')) {
@@ -911,13 +968,34 @@ export default function App() {
       .then(res => res.json())
       .then(savedLoan => {
         setLoans([...loans, savedLoan]);
+        showToast("Loan added successfully!");
       })
       .catch(err => console.error(err));
     } else {
       setLoans([...loans, loanToAdd]);
+      showToast("Loan added successfully!");
     }
     setShowAddLoanModal(false);
     setCustomLoanType('');
+    setNewLoan({
+      name: '',
+      type: 'PERSONAL_LOAN',
+      lenderName: '',
+      loanNumber: '',
+      originalAmount: 0,
+      currentOutstanding: 0,
+      interestRate: 10,
+      interestType: 'FIXED',
+      tenureMonths: 12,
+      emi: 0,
+      startDate: new Date().toISOString().split('T')[0],
+      processingFee: 0,
+      insurance: 0,
+      lateFee: 0,
+      prepaymentCharges: 0,
+      priority: 'MEDIUM',
+      borrowerName: ''
+    });
     confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
   };
 
@@ -1505,8 +1583,7 @@ export default function App() {
     const investedVal = Number(newInvestment.investedValue);
     const currentVal = newInvestment.currentValue ? Number(newInvestment.currentValue) : investedVal;
 
-    const investmentToAdd: Investment = {
-      id: `inv-${Date.now()}`,
+    const investmentData = {
       name: newInvestment.name,
       type: finalType,
       investedValue: investedVal,
@@ -1518,24 +1595,88 @@ export default function App() {
       notes: newInvestment.notes || ''
     };
 
-    setInvestments(prev => [...prev, investmentToAdd]);
-    
-    // Show toast notification
-    showToast(`✅ ${investmentToAdd.name} - ${formatCurrency(investedVal)} logged!`, 'success');
+    if (editingInvestment) {
+      if (currentUser && !currentUser.token.startsWith('demo-')) {
+        fetch(`${API_BASE}/finance/investments/${editingInvestment.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.token
+          },
+          body: JSON.stringify(investmentData)
+        })
+        .then(res => res.json())
+        .then(updated => {
+          setInvestments(prev => prev.map(inv => inv.id === editingInvestment.id ? updated : inv));
+          showToast("Investment updated successfully!");
+        })
+        .catch(err => {
+          console.error(err);
+          showToast("Failed to update investment", "error");
+        });
+      } else {
+        setInvestments(prev => prev.map(inv => inv.id === editingInvestment.id ? { ...inv, ...investmentData } : inv));
+        showToast("Investment updated successfully!");
+      }
 
-    // Clear form fields for quick next entry but preserve type/date/SIP preferences
-    setNewInvestment(prev => ({
-      ...prev,
+      setEditingInvestment(null);
+      setShowAddInvestmentModal(false);
+      setNewInvestment({
+        name: '',
+        investedValue: 0,
+        currentValue: 0,
+        date: new Date().toISOString().split('T')[0],
+        isSIP: false,
+        sipAmount: 0,
+        sipDate: 5,
+        notes: ''
+      });
+      setSelectedInvestmentCategory('MUTUAL_FUND');
+      setCustomInvestmentType('');
+      return;
+    }
+
+    if (currentUser && !currentUser.token.startsWith('demo-')) {
+      fetch(`${API_BASE}/finance/investments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.token
+        },
+        body: JSON.stringify(investmentData)
+      })
+      .then(res => res.json())
+      .then(saved => {
+        setInvestments(prev => [...prev, saved]);
+        showToast(`✅ ${saved.name} logged!`, 'success');
+      })
+      .catch(err => {
+        console.error(err);
+        showToast("Failed to log investment", "error");
+      });
+    } else {
+      const investmentToAdd: Investment = {
+        id: `inv-${Date.now()}`,
+        ...investmentData
+      };
+      setInvestments(prev => [...prev, investmentToAdd]);
+      showToast(`✅ ${investmentToAdd.name} logged!`, 'success');
+    }
+
+    // Clear form fields
+    setNewInvestment({
       name: '',
       investedValue: 0,
       currentValue: 0,
+      date: new Date().toISOString().split('T')[0],
+      isSIP: false,
+      sipAmount: 0,
+      sipDate: 5,
       notes: ''
-    }));
-
-    // Auto-focus name field
-    setTimeout(() => {
-      investmentNameInputRef.current?.focus();
-    }, 80);
+    });
+    setSelectedInvestmentCategory('MUTUAL_FUND');
+    setCustomInvestmentType('');
+    setShowAddInvestmentModal(false);
   };
 
   // Handle Add Asset Submission
@@ -1547,14 +1688,70 @@ export default function App() {
       ? customAssetType.trim() 
       : newAsset.type;
 
-    const assetToAdd: Asset = {
-      id: `ast-${Date.now()}`,
+    const assetData = {
       name: newAsset.name,
       type: finalType as any,
       value: Number(newAsset.value)
     };
 
-    setAssets([...assets, assetToAdd]);
+    if (editingAsset) {
+      if (currentUser && !currentUser.token.startsWith('demo-')) {
+        fetch(`${API_BASE}/finance/assets/${editingAsset.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.token
+          },
+          body: JSON.stringify(assetData)
+        })
+        .then(res => res.json())
+        .then(updated => {
+          setAssets(assets.map(a => a.id === editingAsset.id ? updated : a));
+          showToast("Asset updated successfully!");
+        })
+        .catch(err => {
+          console.error(err);
+          showToast("Failed to update asset", "error");
+        });
+      } else {
+        setAssets(assets.map(a => a.id === editingAsset.id ? { ...a, ...assetData } : a));
+        showToast("Asset updated successfully!");
+      }
+
+      setEditingAsset(null);
+      setShowAddAssetModal(false);
+      setNewAsset({ name: '', type: 'HOUSE', value: 0 });
+      setCustomAssetType('');
+      return;
+    }
+
+    if (currentUser && !currentUser.token.startsWith('demo-')) {
+      fetch(`${API_BASE}/finance/assets`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.token
+        },
+        body: JSON.stringify(assetData)
+      })
+      .then(res => res.json())
+      .then(saved => {
+        setAssets([...assets, saved]);
+        showToast("Asset logged successfully!");
+      })
+      .catch(err => {
+        console.error(err);
+        showToast("Failed to save asset", "error");
+      });
+    } else {
+      const assetToAdd: Asset = {
+        id: `ast-${Date.now()}`,
+        ...assetData
+      };
+      setAssets([...assets, assetToAdd]);
+      showToast("Asset logged successfully!");
+    }
+
     setShowAddAssetModal(false);
     setNewAsset({ name: '', type: 'HOUSE', value: 0 });
     setCustomAssetType('');
@@ -1569,9 +1766,37 @@ export default function App() {
       ? customGoalClassification.trim()
       : newGoal.classification || 'OTHER';
 
+    if (editingGoal) {
+      const updatedGoals: Goal[] = goals.map(g => g.id === editingGoal.id ? {
+        ...g,
+        name: newGoal.name || '',
+        targetAmount: Number(newGoal.targetAmount),
+        currentAmount: Number(newGoal.currentAmount || 0),
+        type: newGoal.type as 'EXPENSE' | 'INVESTMENT',
+        classification: finalClassification,
+        targetDurationMonths: newGoal.targetDurationMonths ? Number(newGoal.targetDurationMonths) : undefined,
+        targetDate: newGoal.targetDate || undefined
+      } : g);
+      setGoals(updatedGoals);
+      setEditingGoal(null);
+      setShowAddGoalModal(false);
+      setNewGoal({
+        name: '',
+        targetAmount: 0,
+        currentAmount: 0,
+        type: 'INVESTMENT',
+        classification: 'RETIREMENT',
+        targetDurationMonths: 12,
+        targetDate: ''
+      });
+      setCustomGoalClassification('');
+      showToast("Financial Goal updated successfully!", "success");
+      return;
+    }
+
     const goalToAdd: Goal = {
       id: `goal-${Date.now()}`,
-      name: newGoal.name,
+      name: newGoal.name || '',
       targetAmount: Number(newGoal.targetAmount),
       currentAmount: Number(newGoal.currentAmount || 0),
       type: newGoal.type as 'EXPENSE' | 'INVESTMENT',
@@ -2436,6 +2661,35 @@ export default function App() {
                                     Amortization Schedule
                                   </button>
                                   <button
+                                    onClick={() => {
+                                      setEditingLoan(loan);
+                                      setNewLoan({
+                                        name: loan.name,
+                                        type: loan.type,
+                                        lenderName: loan.lenderName,
+                                        loanNumber: loan.loanNumber || '',
+                                        originalAmount: loan.originalAmount,
+                                        currentOutstanding: loan.currentOutstanding,
+                                        interestRate: loan.interestRate,
+                                        interestType: loan.interestType,
+                                        tenureMonths: loan.tenureMonths,
+                                        emi: loan.emi,
+                                        startDate: loan.startDate.split('T')[0],
+                                        processingFee: loan.processingFee || 0,
+                                        insurance: loan.insurance || 0,
+                                        lateFee: loan.lateFee || 0,
+                                        prepaymentCharges: loan.prepaymentCharges || 0,
+                                        priority: loan.priority || 'MEDIUM',
+                                        borrowerName: loan.borrowerName || ''
+                                      });
+                                      setShowAddLoanModal(true);
+                                    }}
+                                    className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 rounded-lg transition cursor-pointer"
+                                    title="Edit Loan"
+                                  >
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
                                     onClick={() => handleDeleteLoan(loan.id)}
                                     className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 rounded-lg transition cursor-pointer"
                                     title="Delete Loan"
@@ -2669,13 +2923,34 @@ export default function App() {
                         <div key={goal.id} className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 space-y-2">
                           <div className="flex justify-between items-center text-xs">
                             <span className="font-bold text-slate-700 dark:text-slate-350">{goal.name} <span className="text-[9px] bg-slate-200/50 dark:bg-slate-800 text-slate-500 font-normal px-2 py-0.5 rounded-md ml-1">{goal.classification ? goal.classification.replace('_', ' ') : 'General'}</span></span>
-                            <button
-                              onClick={() => handleDeleteGoal(goal.id)}
-                              className="text-slate-400 hover:text-rose-500"
-                              title="Delete Goal"
-                            >
-                              ✕
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setEditingGoal(goal);
+                                  setNewGoal({
+                                    name: goal.name,
+                                    targetAmount: goal.targetAmount,
+                                    currentAmount: goal.currentAmount || 0,
+                                    type: goal.type,
+                                    classification: goal.classification,
+                                    targetDurationMonths: goal.targetDurationMonths || 12,
+                                    targetDate: goal.targetDate || ''
+                                  });
+                                  setShowAddGoalModal(true);
+                                }}
+                                className="text-slate-400 hover:text-blue-500 transition cursor-pointer"
+                                title="Edit Goal"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteGoal(goal.id)}
+                                className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                                title="Delete Goal"
+                              >
+                                ✕
+                              </button>
+                            </div>
                           </div>
                           
                           <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
@@ -3150,12 +3425,34 @@ export default function App() {
                             <div key={goal.id} className="space-y-1.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80">
                               <div className="flex justify-between items-center text-xs">
                                 <span className="font-bold text-slate-700 dark:text-slate-350">{goal.name} <span className="text-[9px] bg-slate-200/50 dark:bg-slate-800 text-slate-500 font-normal px-2 py-0.5 rounded-md ml-1">{goal.classification ? goal.classification.replace('_', ' ') : 'General'}</span></span>
-                                <button
-                                  onClick={() => handleDeleteGoal(goal.id)}
-                                  className="text-slate-400 hover:text-rose-500"
-                                >
-                                  ✕
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => {
+                                      setEditingGoal(goal);
+                                      setNewGoal({
+                                        name: goal.name,
+                                        targetAmount: goal.targetAmount,
+                                        currentAmount: goal.currentAmount || 0,
+                                        type: goal.type,
+                                        classification: goal.classification,
+                                        targetDurationMonths: goal.targetDurationMonths || 12,
+                                        targetDate: goal.targetDate || ''
+                                      });
+                                      setShowAddGoalModal(true);
+                                    }}
+                                    className="text-slate-400 hover:text-blue-500 transition cursor-pointer"
+                                    title="Edit Goal"
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteGoal(goal.id)}
+                                    className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                                    title="Delete Goal"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
                               </div>
                               
                               <div className="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
@@ -3311,6 +3608,27 @@ export default function App() {
                                   </span>
                                 </div>
                                 <button
+                                  onClick={() => {
+                                    setEditingInvestment(inv);
+                                    setNewInvestment({
+                                      name: inv.name,
+                                      investedValue: inv.investedValue,
+                                      currentValue: inv.currentValue,
+                                      date: inv.date ? inv.date.split('T')[0] : new Date().toISOString().split('T')[0],
+                                      isSIP: !!inv.isSIP,
+                                      sipAmount: inv.sipAmount || 0,
+                                      sipDate: inv.sipDate || 5,
+                                      notes: inv.notes || ''
+                                    });
+                                    setSelectedInvestmentCategory(inv.type);
+                                    setShowAddInvestmentModal(true);
+                                  }}
+                                  className="text-slate-400 hover:text-blue-500 transition cursor-pointer p-1"
+                                  title="Edit Investment"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </button>
+                                <button
                                   onClick={() => handleDeleteInvestment(inv.id)}
                                   className="text-slate-400 hover:text-rose-500 transition cursor-pointer p-1"
                                   title="Delete Investment"
@@ -3349,6 +3667,21 @@ export default function App() {
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-xs font-bold text-emerald-500">{formatCurrency(ast.value)}</span>
+                          <button
+                            onClick={() => {
+                              setEditingAsset(ast);
+                              setNewAsset({
+                                name: ast.name,
+                                type: ast.type,
+                                value: ast.value
+                              });
+                              setShowAddAssetModal(true);
+                            }}
+                            className="text-slate-400 hover:text-blue-500 transition cursor-pointer"
+                            title="Edit Asset"
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </button>
                           <button
                             onClick={() => handleDeleteAsset(ast.id)}
                             className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
@@ -4352,8 +4685,8 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-lg glass-panel rounded-3xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-slate-800/80 p-6 space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="text-base font-bold">Add Original Loan details</h3>
-              <button onClick={() => setShowAddLoanModal(false)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <h3 className="text-base font-bold">{editingLoan ? "Edit Loan Details" : "Add Original Loan details"}</h3>
+              <button onClick={() => { setShowAddLoanModal(false); setEditingLoan(null); }} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
             </div>
 
             <form onSubmit={handleCreateLoan} className="space-y-3 text-xs">
@@ -4393,45 +4726,47 @@ export default function App() {
                     <option value="HOME_LOAN">Home Loan</option>
                     <option value="GOLD_LOAN">Gold Loan</option>
                     <option value="PERSONAL_LOAN">Personal Loan</option>
-                    <option value="CREDIT_CARD">Credit Card</option>
-                    <option value="FRIEND_LOAN">Money Lent (Friend)</option>
+                    <option value="CREDIT_CARD">Credit Cards</option>
+                    <option value="FRIEND_LOAN">Money Lent (Friends)</option>
                     <option value="FAMILY_LOAN">Money Lent (Family)</option>
-                    <option value="OTHER">Other</option>
+                    <option value="VEHICLE_LOAN">Vehicle Loan</option>
+                    <option value="EDUCATION_LOAN">Education Loan</option>
+                    <option value="OTHER">Other Type</option>
                   </select>
-                  {newLoan.type === 'OTHER' && (
-                    <div className="mt-2">
-                      <label className="text-slate-400 block mb-1">Custom Loan Type</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Car Loan, Friend Loan"
-                        value={customLoanType}
-                        onChange={(e) => setCustomLoanType(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                      />
-                    </div>
-                  )}
-                  {(newLoan.type === 'FRIEND_LOAN' || newLoan.type === 'FAMILY_LOAN') && (
-                    <div className="mt-2">
-                      <label className="text-slate-400 block mb-1">Person's Name (Borrower)</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Ramesh Kumar"
-                        value={newLoan.borrowerName || ''}
-                        onChange={(e) => setNewLoan({ ...newLoan, borrowerName: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                      />
-                    </div>
-                  )}
                 </div>
                 <div>
-                  <label className="text-slate-400 block mb-1">Original Loan Amount (${currency})</label>
+                  <label className="text-slate-400 block mb-1">Account / Loan Number</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 5002930219"
+                    value={newLoan.loanNumber || ''}
+                    onChange={(e) => setNewLoan({ ...newLoan, loanNumber: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-400 block mb-1">Original Loan Amount ({currency === 'INR' ? '₹' : '$'})</label>
                   <input
                     type="number"
                     required
-                    value={newLoan.originalAmount}
+                    placeholder="e.g. 250000"
+                    value={newLoan.originalAmount || ''}
                     onChange={(e) => setNewLoan({ ...newLoan, originalAmount: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 block mb-1">Interest Rate (% p.a.)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    placeholder="e.g. 8.5"
+                    value={newLoan.interestRate || ''}
+                    onChange={(e) => setNewLoan({ ...newLoan, interestRate: Number(e.target.value) })}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
@@ -4439,31 +4774,34 @@ export default function App() {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-slate-400 block mb-1">Rate (%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={newLoan.interestRate}
-                    onChange={(e) => setNewLoan({ ...newLoan, interestRate: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
+                  <label className="text-slate-400 block mb-1">Interest Type</label>
+                  <select
+                    value={newLoan.interestType}
+                    onChange={(e) => setNewLoan({ ...newLoan, interestType: e.target.value as InterestType })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-xs outline-none"
+                  >
+                    <option value="FIXED">Fixed</option>
+                    <option value="FLOATING">Floating</option>
+                    <option value="SIMPLE">Simple Interest</option>
+                  </select>
                 </div>
                 <div>
                   <label className="text-slate-400 block mb-1">Tenure (Months)</label>
                   <input
                     type="number"
                     required
-                    value={newLoan.tenureMonths}
+                    placeholder="e.g. 36"
+                    value={newLoan.tenureMonths || ''}
                     onChange={(e) => setNewLoan({ ...newLoan, tenureMonths: Number(e.target.value) })}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-400 block mb-1">EMI (${currency})</label>
+                  <label className="text-slate-400 block mb-1">Monthly EMI ({currency === 'INR' ? '₹' : '$'})</label>
                   <input
                     type="number"
                     required
+                    placeholder="e.g. 7800"
                     value={newLoan.emi}
                     onChange={(e) => setNewLoan({ ...newLoan, emi: Number(e.target.value) })}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
@@ -4524,7 +4862,7 @@ export default function App() {
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-lg cursor-pointer"
               >
-                Create Loan
+                {editingLoan ? "Save Changes" : "Create Loan"}
               </button>
             </form>
           </div>
@@ -5076,8 +5414,8 @@ export default function App() {
         <div className="mobile-modal-sheet">
           <div className="mobile-modal-content">
             <div className="mobile-modal-header">
-              <h3 className="text-base font-bold">Log New Investment</h3>
-              <button onClick={() => setShowAddInvestmentModal(false)} className="text-slate-400 hover:text-rose-500 font-bold p-1"><X className="h-5 w-5" /></button>
+              <h3 className="text-base font-bold">{editingInvestment ? "Edit Investment Details" : "Log New Investment"}</h3>
+              <button onClick={() => { setShowAddInvestmentModal(false); setEditingInvestment(null); }} className="text-slate-400 hover:text-rose-500 font-bold p-1"><X className="h-5 w-5" /></button>
             </div>
 
             <div className="mobile-modal-body space-y-4">
@@ -5224,7 +5562,7 @@ export default function App() {
                     type="submit"
                     className="w-full glow-btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl cursor-pointer text-sm"
                   >
-                    Log Investment & Add Next
+                    {editingInvestment ? "Save Changes" : "Log Investment & Add Next"}
                   </button>
                 </div>
               </form>
@@ -5300,8 +5638,8 @@ export default function App() {
         <div className="mobile-modal-sheet">
           <div className="mobile-modal-content">
             <div className="mobile-modal-header">
-              <h3 className="text-base font-bold">Log New Asset or Fund</h3>
-              <button onClick={() => setShowAddAssetModal(false)} className="text-slate-400 hover:text-rose-500 font-bold p-1"><X className="h-5 w-5" /></button>
+              <h3 className="text-base font-bold">{editingAsset ? "Edit Asset / Wealth Details" : "Log New Asset or Fund"}</h3>
+              <button onClick={() => { setShowAddAssetModal(false); setEditingAsset(null); }} className="text-slate-400 hover:text-rose-500 font-bold p-1"><X className="h-5 w-5" /></button>
             </div>
 
             <div className="mobile-modal-body space-y-4">
@@ -5371,7 +5709,7 @@ export default function App() {
                     type="submit"
                     className="w-full glow-btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl cursor-pointer text-sm"
                   >
-                    Log Asset / Fund
+                    {editingAsset ? "Save Changes" : "Log Asset / Fund"}
                   </button>
                 </div>
               </form>
@@ -5384,8 +5722,8 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-md glass-panel rounded-3xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-slate-800/80 p-6 space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="text-base font-bold">Create Financial Goal</h3>
-              <button onClick={() => setShowAddGoalModal(false)} className="text-slate-400 hover:text-rose-500 font-bold p-1"><X className="h-5 w-5" /></button>
+              <h3 className="text-base font-bold">{editingGoal ? "Edit Financial Goal" : "Create Financial Goal"}</h3>
+              <button onClick={() => { setShowAddGoalModal(false); setEditingGoal(null); }} className="text-slate-400 hover:text-rose-500 font-bold p-1"><X className="h-5 w-5" /></button>
             </div>
 
             <form onSubmit={handleCreateGoal} className="space-y-3 text-xs">
@@ -5496,7 +5834,7 @@ export default function App() {
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl cursor-pointer transition text-xs mt-2"
               >
-                Establish Financial Goal
+                {editingGoal ? "Save Changes" : "Establish Financial Goal"}
               </button>
             </form>
           </div>
