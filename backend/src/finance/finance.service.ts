@@ -188,14 +188,17 @@ export class FinanceService {
   }
 
   async createInvestment(userId: string, data: any) {
-    const { id, ...cleanData } = data;
+    const { name, type, investedValue, currentValue } = data;
+    const invested = Number(investedValue || 0);
+    const current = Number(currentValue || invested);
     return this.prisma.investment.create({
       data: {
-        ...cleanData,
+        name,
+        type,
         userId,
-        investedValue: Number(cleanData.investedValue),
-        currentValue: Number(cleanData.currentValue),
-        gainLoss: Number(cleanData.currentValue) - Number(cleanData.investedValue),
+        investedValue: invested,
+        currentValue: current,
+        gainLoss: current - invested,
       },
     });
   }
@@ -206,12 +209,13 @@ export class FinanceService {
   }
 
   async createAsset(userId: string, data: any) {
-    const { id, ...cleanData } = data;
+    const { name, type, value } = data;
     return this.prisma.asset.create({
       data: {
-        ...cleanData,
+        name,
+        type,
         userId,
-        value: Number(cleanData.value),
+        value: Number(value || 0),
       },
     });
   }
@@ -267,25 +271,29 @@ export class FinanceService {
   }
 
   async updateAsset(userId: string, id: string, data: any) {
-    const { id: _, userId: __, ...cleanData } = data;
+    const { name, type, value } = data;
     return this.prisma.asset.update({
       where: { id, userId },
       data: {
-        ...cleanData,
-        value: Number(cleanData.value)
+        name,
+        type,
+        value: Number(value || 0)
       }
     });
   }
 
   async updateInvestment(userId: string, id: string, data: any) {
-    const { id: _, userId: __, ...cleanData } = data;
+    const { name, type, investedValue, currentValue } = data;
+    const invested = Number(investedValue || 0);
+    const current = Number(currentValue || invested);
     return this.prisma.investment.update({
       where: { id, userId },
       data: {
-        ...cleanData,
-        investedValue: Number(cleanData.investedValue),
-        currentValue: Number(cleanData.currentValue),
-        gainLoss: Number(cleanData.currentValue) - Number(cleanData.investedValue)
+        name,
+        type,
+        investedValue: invested,
+        currentValue: current,
+        gainLoss: current - invested
       }
     });
   }

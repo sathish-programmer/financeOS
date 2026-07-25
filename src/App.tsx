@@ -3238,7 +3238,7 @@ export default function App() {
             // Filter & Sort Investments
             const sortedAndFilteredInvestments = [...investments]
               .filter(inv => {
-                const matchesSearch = inv.name.toLowerCase().includes(investmentSearch.toLowerCase()) ||
+                const matchesSearch = (inv.name || '').toLowerCase().includes(investmentSearch.toLowerCase()) ||
                   (inv.notes && inv.notes.toLowerCase().includes(investmentSearch.toLowerCase()));
                 const matchesFilter = investmentFilterType === 'ALL' || inv.type === investmentFilterType;
                 const matchesStart = !investmentStartDate || new Date(inv.date || '') >= new Date(investmentStartDate);
