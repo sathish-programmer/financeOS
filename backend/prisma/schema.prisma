@@ -61,24 +61,51 @@ enum PaymentMethod {
   CHEQUE
 }
 
+enum FamilyRole {
+  OWNER
+  MEMBER
+}
+
+model FamilyGroup {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  inviteCode  String         @unique
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  members     FamilyMember[]
+}
+
+model FamilyMember {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  role          FamilyRole  @default(MEMBER)
+  joinedAt      DateTime    @default(now())
+  userId        String      @db.ObjectId
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyGroupId String      @db.ObjectId
+  familyGroup   FamilyGroup @relation(fields: [familyGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, familyGroupId])
+}
+
 model User {
-  id           String        @id @default(auto()) @map("_id") @db.ObjectId
-  email        String        @unique
-  passwordHash String
-  name         String
-  role         Role          @default(USER)
-  currency     String        @default("INR")
-  language     String        @default("en")
-  theme        String        @default("dark")
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  loans        Loan[]
-  expenses     Expense[]
-  budgets      Budget[]
-  accounts     Account[]
-  investments  Investment[]
-  assets       Asset[]
-  notifications Notification[]
+  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  email             String         @unique
+  passwordHash      String
+  name              String
+  role              Role           @default(USER)
+  currency          String         @default("INR")
+  language          String         @default("en")
+  theme             String         @default("dark")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  loans             Loan[]
+  expenses          Expense[]
+  budgets           Budget[]
+  accounts          Account[]
+  investments       Investment[]
+  assets            Asset[]
+  notifications     Notification[]
+  familyMemberships FamilyMember[]
 }
 
 model Account {
@@ -168,7 +195,7 @@ model Expense {
   recurringType  RecurringType @default(NONE)
   
   userId         String        @db.ObjectId
-  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   accountId      String?       @db.ObjectId
   account            Account?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
   createdAt      DateTime      @default(now())
@@ -182,7 +209,7 @@ model Budget {
   month          Int
   year           Int
   userId         String        @db.ObjectId
-  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 }
@@ -196,7 +223,7 @@ model Investment {
   gainLoss       Float
   annualReturn   Float?
   userId         String        @db.ObjectId
-  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 }
@@ -207,7 +234,7 @@ model Asset {
   type           String        // HOUSE, LAND, CAR, BIKE, GOLD, JEWELLERY, CASH, BANK_BALANCE, ELECTRONICS, OTHERS
   value          Float
   userId         String        @db.ObjectId
-  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 }
@@ -219,6 +246,6 @@ model Notification {
   type           String        // EMI_DUE, GOLD_RENEWAL, CREDIT_CARD_LIMIT, BUDGET_EXCEEDED, INSIGHT
   isRead         Boolean       @default(false)
   userId         String        @db.ObjectId
-  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt      DateTime      @default(now())
 }
